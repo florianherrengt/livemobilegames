@@ -2,10 +2,10 @@ import {
   HOP_DURATION_MS,
   type HopRejectionReason,
   isAdjacent,
+  type MatchRuntime,
   parsePlatformId,
+  type RuntimePlayer,
 } from "@falling-platforms/shared";
-
-import type { MatchRuntime, RuntimePlayer } from "./types.js";
 
 export type LandingResult = "landed" | "eliminated";
 

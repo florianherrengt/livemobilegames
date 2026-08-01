@@ -1,48 +1,60 @@
-# Falling Platforms
+# Multiplayer Games Platform
 
-A browser-based, mobile-first multiplayer game. Players stand on a grid of
-platforms suspended over a void. Swipe up, down, left or right to hop to the
-adjacent platform; platforms progressively warn and disappear; the last
-survivor wins.
+A reusable, server-authoritative multiplayer platform for browser mini-games,
+built on Colyseus 0.17. One server hosts every game behind a single shared
+communication layer — room codes, lobbies, host and ready state, reconnection,
+typed commands and errors, server-controlled timers, match results and
+leaderboards. Adding a game means writing its rules and its client; the room
+and networking code is written once and reused by all of them.
 
-No joystick, no jump button, no physics, no accounts — just one-finger
-swipe-to-hop movement and a short private room code.
+Three games ship in this repository:
 
-## Why swipe-to-hop?
+- **Falling Platforms** (Phaser client): swipe-to-hop survival on a shrinking
+  grid of platforms. The original product, now running on the platform.
+- **Tap Race** (vanilla TypeScript client): the second consumer, proving that a
+  new game registers without touching platform internals.
+- **Capital Pin** (React + MapLibre client): drop a pin where you think each
+  capital city is; the closest guess wins the round.
 
-Every movement is a discrete jump from the platform you stand on to an
-adjacent platform. A swipe anywhere on the screen expresses a direction — the
-client resolves the adjacent platform in that direction and the hop follows
-the finger's intent. There is no continuous walking or aiming: your position
-is defined by *which platform you are on*, not by free coordinates. That makes
-the game instantly readable, playable with one finger, and trivially
-server-authoritative — the server stores a platform id, not a physics
-simulation, so there is nothing to desynchronise.
+Opening the server in a browser shows a **game selector** (the hub). Each game
+runs in its own independent client app, but every client talks to the server
+through the same shared layer.
 
-## Architecture
-
-The repository is a pnpm workspace:
+## Architecture overview
 
 ```text
-apps/client    Phaser 4 + Vite + the official Colyseus client SDK (@colyseus/sdk)
-apps/server    Colyseus 0.17 server, @colyseus/schema state, pure game logic
-packages/shared  Shared constants, types, Zod schemas and grid math
+apps/server             Colyseus server: registers all games, serves the hub
+                        landing page and every game client from one origin
+apps/hub-client         Landing page (root): lists the games and links into them
+apps/client             Falling Platforms Phaser client
+apps/tap-race-client    Tap Race vanilla TypeScript client
+apps/capital-pin-client Capital Pin React + MapLibre client
+packages/platform-shared    Protocol types, Zod schemas, errors, results
+packages/platform-schema    Synchronized Colyseus Schema classes (isomorphic)
+packages/platform-server     GameDefinition contract, PlatformRoom, Presence room
+                            codes, serial queue, host/ready rules, logging
+packages/client-sdk          Framework-independent client (connection, commands,
+                            reconnection records, clock estimation) — the single
+                            shared layer every game client reuses
+packages/platform-test       Test kit: test server, fake clients, time advancement
+packages/shared              Falling Platforms types, schemas, grid math
+packages/tap-race            Tap Race command/state schemas + server module
+packages/capital-pin         Capital Pin command/state schemas, server module,
+                            capitals dataset + pure game logic
 ```
 
-The server owns everything that matters:
+The server owns everything that matters: room codes, player presence, host and
+ready state, start and play-again permissions, reconnection, command
+validation, match results and timers. Games implement
+`GameDefinition` (state schema, command schema, lifecycle hooks, tick and
+scoring) and never touch sockets or room internals. On the client, every game
+reuses `MultiplayerClient` (`packages/client-sdk`) for room creation, joining
+and command sending — the part that is identical for every game.
 
-- Match phase and lobby/host state.
-- Platform state (`stable` → `warning` → `gone`) and the removal schedule.
-- Hop validation, jump deadlines, landings and eliminations.
-- The winner/draw result.
-
-The client only renders authoritative state, starts optimistic animations for
-its own swipes, and reconciles when the server disagrees. Colyseus handles
-connection management, state patching and reconnection tokens — nothing custom
-is layered on top.
-
-The pure game logic (`apps/server/src/game/*`) has no Colyseus dependency, so
-it is unit-tested without a server or browser.
+See [docs/architecture.md](docs/architecture.md) for the full design,
+[docs/protocol.md](docs/protocol.md) for the wire protocol,
+[docs/creating-a-game.md](docs/creating-a-game.md) for adding a new game, and
+[docs/testing-a-game.md](docs/testing-a-game.md) for the test kit.
 
 ## Requirements
 
@@ -61,136 +73,162 @@ pnpm install
 pnpm dev
 ```
 
-This builds the shared package, starts the game server (default
-`http://0.0.0.0:2567`) and the Vite dev server
-(`http://0.0.0.0:5173`). Both bind to `0.0.0.0` so a phone on the same Wi-Fi
-can reach them.
+Builds the shared/platform packages, then starts:
 
-The client derives the server URL from the page origin: in dev it connects to
-`ws://<hostname>:2567`; in production it connects to the same origin the page
-was served from. Override with `VITE_GAME_SERVER_URL` when the server lives
-elsewhere.
+- The multiplayer server at `http://0.0.0.0:2567`
+- The hub landing page at `http://0.0.0.0:5176/` (the game selector)
+- Falling Platforms at `http://0.0.0.0:5173`
+- Tap Race at `http://localhost:5174/tap-race/`
+- Capital Pin at `http://localhost:5175/capital-pin/`
 
-### Two local browser sessions
+The clients derive the server URL from the page origin (dev: `ws://<host>:2567`;
+production: same origin). Override with `VITE_GAME_SERVER_URL`.
 
-1. Open `http://localhost:5173` in one browser, enter a name, tap **Create
-   room**.
-2. Open a second browser (or a private/incognito window) at the same URL,
-   enter a different name and the room code shown on the first screen.
-3. The creator (host) taps **Start**.
+In production (`pnpm build && pnpm start`) the single server serves everything
+from one origin:
 
-### Two physical phones on the same Wi-Fi
+- `/`           — the hub (game selector)
+- `/falling-platforms/` — Falling Platforms
+- `/tap-race/`  — Tap Race
+- `/capital-pin/` — Capital Pin
+- `/games`      — JSON list of registered games (used by the hub)
 
-1. Find your computer's LAN IP (e.g. `192.168.1.20`).
-2. Open `http://192.168.1.20:5173` on both phones.
-3. Create a room on one phone, join with the code on the other.
-4. Portrait orientation only — landscape shows a rotate prompt.
+### Playing locally
 
-If the phones cannot connect, check the firewall and that the server is
-reachable from the phone: `http://192.168.1.20:2567/health`.
+1. Open the hub (dev: `http://localhost:5176/`, prod: the server URL) and pick a
+   game, or open a game client directly.
+2. Enter a display name and create a room.
+3. Join from a second browser (or a normal + private window) with the
+   5-character room code.
+4. Falling Platforms: the host starts immediately. Tap Race: everyone marks
+   ready, then the host starts.
+
+## Deploying with Docker
+
+The repository ships a multi-stage `Dockerfile` that installs dependencies,
+builds every package and client, strips dev dependencies and runs the server
+as a non-root user. The final image is a single container serving the hub, all
+three game clients and the WebSocket/API server from one origin.
+
+```bash
+docker build -t livemobilegames .
+
+docker run --rm -p 2567:2567 \
+  -e CLIENT_ORIGINS=https://games.example.com \
+  livemobilegames
+```
+
+Notes:
+
+- The container listens on `PORT` (default `2567`) and exposes that port. A
+  healthcheck hits `/health` every 30 seconds.
+- Set `CLIENT_ORIGINS` to the public origin(s) your players connect from
+  (comma-separated). Browsers send an `Origin` header even for same-origin
+  WebSockets, so leave it empty only if you want to accept any origin.
+- All other environment variables in `.env.example` (`LOG_LEVEL`,
+  `ROOM_CODE_LENGTH`, `MAX_ROOM_LIFETIME_MS`, etc.) apply unchanged.
+- Rooms and Presence are in-memory: a container restart loses active rooms.
+  Run a single replica, or accept that limitation before scaling horizontally.
 
 ## Commands
 
 ```bash
-pnpm dev         # server + client dev servers
-pnpm build       # build shared, server and client
-pnpm start       # run the built server (also serves the built client)
-pnpm test        # unit + integration tests (Vitest)
-pnpm test:e2e    # build + Playwright mobile end-to-end tests (two phones)
-pnpm typecheck   # strict TypeScript checks across all packages
-pnpm lint        # Biome check
-pnpm format      # Biome format
+pnpm dev              # server + hub + all three game clients
+pnpm dev:falling-platforms  # server + hub + Falling Platforms only
+pnpm dev:tap-race           # server + hub + Tap Race only
+pnpm dev:capital-pin        # server + hub + Capital Pin only
+pnpm build            # production build of every package and app
+pnpm start            # run the built server (serves the hub and all built clients)
+pnpm test             # all unit + integration tests
+pnpm test:unit        # platform package unit tests
+pnpm test:integration # server integration tests
+pnpm test:e2e         # Playwright end-to-end for both games
+pnpm typecheck        # strict TypeScript across the workspace
+pnpm lint             # Biome check
+pnpm format           # Biome format
 ```
 
-`pnpm test:e2e` requires the Playwright Chromium browser
-(installed automatically by `pnpm install`; re-run with
-`pnpm exec playwright install chromium` if needed).
+## Sessions, rooms and reconnection
+
+- **Sessions.** There are no accounts. Joining a room with a display name
+  creates a Colyseus session; `sessionId` is the stable room-membership
+  identity and survives socket reconnection. It is scoped to one room
+  membership — a separate cross-room `playerId` is a documented future
+  extension.
+- **Rooms.** Creating a room claims a unique 5-character code (configurable)
+  through the Colyseus Presence API. The creator is the host. Codes are
+  case-insensitive, use an unambiguous alphabet, and are released on room
+  disposal.
+- **Reconnection.** On an unexpected disconnect the player is marked
+  `reconnecting` and kept in the room for the game's grace period. The client
+  persists `{ serverUrl, roomId, roomName, reconnectToken, updatedAt }` and
+  auto-reconnects with the token; the token is rotated and re-persisted after
+  every successful reconnection. Colyseus sends a full state snapshot on
+  reconnect, so a reconnecting client exactly catches up. After the grace
+  period the player is permanently removed; the host transfers to the earliest
+  joined connected player.
+- **Commands, events and snapshots.** Persistent state is synchronized Colyseus
+  Schema. Commands are typed messages validated with Zod; lobby commands
+  require a request ID and receive a `platform:command-result`. See
+  [docs/protocol.md](docs/protocol.md).
+
+## Creating a new game
+
+Because the room, socket, session, reconnection and lobby code all live in the
+shared layer, a new game is just its rules plus a client that uses
+`MultiplayerClient` to talk to the server.
+
+1. Create a package with your command types/Zod schema and synchronized state
+   schema (extending `PlatformState`/`PlatformPlayerState` from
+   `platform-schema`).
+2. Implement `GameDefinition` from `platform-server`: config, state/player
+   factories, lifecycle hooks, `onCommand`, optional `onTick`.
+3. Register it in `apps/server/src/app.config.ts` with `defineRoom`.
+4. Build a client app that uses `MultiplayerClient`
+   (`@falling-platforms/client-sdk`) for create/join/ready/start/command — the
+   shared layer — and render the synced state however you like.
+
+The new game automatically appears in the hub's game selector (the hub reads
+`/games`) and is served at the path you wire in `app.config.ts`. No room,
+socket, session, reconnection or lobby code is needed. The complete walkthrough
+is in [docs/creating-a-game.md](docs/creating-a-game.md). Capital Pin
+(`packages/capital-pin` + `apps/capital-pin-client`) is a full reference for a
+game with secret per-round state (the answer is hidden until a round ends).
 
 ## Environment variables
 
+See `.env.example`. Notable options:
+
 ```text
-PORT=2567               # game server port
-HOST=0.0.0.0            # game server bind host
-ALLOW_SOLO=false        # allow a 1-player match (development/tests)
-E2E_TEST_MODE=false     # deterministic, fast match timings for tests
-VITE_GAME_SERVER_URL=   # client override; unset = derive from page origin
+PORT=2567                    server port
+HOST=0.0.0.0                 bind host
+ROOM_CODE_LENGTH=5           room code length
+RECONNECT_GRACE_MS=10000     default reconnection grace period
+MAX_MESSAGES_PER_SECOND=60   per-socket message rate limit
+MAX_ROOM_LIFETIME_MS=1800000 room lifetime cap
+FINISHED_ROOM_TIMEOUT_MS=600000  finished-room disposal timeout
+ROOM_CODE_CLAIM_TTL_MS=      presence claim TTL override
+MAX_SOCKET_PAYLOAD_BYTES=65536  websocket payload cap
+CLIENT_ORIGINS=...           comma-separated allowed origins (empty = allow all)
+LOG_LEVEL=info               pino log level
+QUEUE_WARN_DEPTH=20          serial queue depth warning
+QUEUE_WARN_DURATION_MS=100   serial queue duration warning
+ALLOW_SOLO=false             Falling Platforms: allow 1-player matches
+E2E_TEST_MODE=false          fast deterministic timings for tests
 ```
 
-See `.env.example`.
+Invalid configuration fails fast at startup with a clear error.
 
-## Server-authoritative design
+## Known v1 limitations
 
-- A hop request is `{ sequence, targetPlatformId }`. The client resolves a
-  swipe direction into the adjacent target platform; the server validates the
-  target against its own state (exists, not gone, adjacent to the player's
-  *server-side* platform, not already jumping, sequence newer than the last
-  accepted one, within the hop rate limit) and rejects otherwise with a
-  machine-readable reason. The server never trusts the client's position or a
-  claimed direction — only a concrete target platform is accepted.
-- A platform holds at most one player: a hop is rejected with
-  `target-occupied` when another participant is standing on the target or has
-  already committed an in-flight jump onto it, so two players can never end up
-  on the same tile. The client mirrors the rule for instant feedback and
-  excludes occupied tiles from the movement hints.
-- Jump start/end deadlines are server timestamps. Landing resolves when the
-  deadline is reached; if the target disappeared in the same update, the
-  player is eliminated. Platform disappearance is processed before landings
-  in every update, so landing on a platform that vanishes at the same instant
-  is death.
-- The client starts an optimistic animation on swipe and reconciles: a
-  rejected hop snaps back to the authoritative platform; an airborne swipe is
-  buffered as a direction and only sent if it resolves to a valid adjacent
-  platform after the authoritative landing.
-
-## Reconnection
-
-On an unexpected disconnect the server keeps the player in the room for 10
-seconds, marks them disconnected, and allows a reconnection (Colyseus
-reconnection token). During the grace period their match state continues: an
-in-progress jump finishes, and a disappearing platform can still eliminate a
-grounded player. Reconnecting restores the same player state with no
-duplicate. When the grace period expires the player is removed in the lobby or
-eliminated mid-match, and the host is reassigned to the oldest remaining
-connected player.
-
-The browser client uses the SDK's built-in reconnection flow for transient
-network issues (including drops in the first seconds of a room, which the SDK
-skips by default). While reconnecting, a "Reconnecting…" indicator appears in
-the HUD and queued hop requests are flushed once the connection is restored.
-If reconnection fails, the player returns to the home screen with an error.
-
-## Room codes
-
-The room code is the Colyseus room id: five characters from
-`ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no ambiguous I/O/0/1), unique among live
-rooms, case-insensitive on input, and freed when the room is disposed. Codes
-are registered in an in-memory registry in the server process.
-
-Every round in a room uses a fresh random match seed (a fixed seed only in
-`E2E_TEST_MODE`), so consecutive matches have different spawns and different
-platform-removal orders. Players can leave a lobby at any time with the
-**Leave room** button.
-
-## Practical scaling limitations
-
-- Room codes live in process memory: horizontal scaling to multiple server
-  processes would require a shared presence/code store (Colyseus presence or
-  Redis). Not implemented by design.
-- The update loop and state patches are designed for one process; very large
-  player counts grow the arena quadratically (at least six platforms per
-  player, `side = odd(ceil(sqrt(max(49, players*6))))`), so browser rendering
-  and patch bandwidth become the practical limits long before any gameplay
-  cap — there is intentionally no artificial player limit.
-- Colyseus rooms auto-dispose when the last client leaves.
-
-## Known mobile-browser assumptions
-
-- Designed for portrait orientation on modern mobile Safari and Chrome;
-  landscape is covered by a rotate prompt, not a layout.
-- `touch-action: none` on the canvas, disabled scrolling/overscroll and
-  `viewport-fit=cover` with safe-area insets are used to keep taps and layout
-  predictable.
-- Phaser runs in the WebGL renderer; older browsers that lack WebGL may not
-  render.
-- Display names are rendered as plain text only (never HTML) and are capped at
-  20 characters.
+- Single Node.js process; rooms and Presence are in-memory. A server restart
+  loses active rooms.
+- Room codes are allocated through Colyseus Presence (in-memory in v1, Redis
+  Presence compatible) and are not horizontally partitioned.
+- Identity is room-scoped: there is no cross-room anonymous `playerId`.
+- No accounts, matchmaking, persistent histories or databases.
+- No shared UI package: the SDK shares the controller/state model; each client
+  renders its own lobby UI.
+- In Falling Platforms, a permanent mid-match leave removes the player row
+  immediately (previously it lingered as an eliminated ghost), and the player
+  cap is a finite 100.

@@ -1,10 +1,9 @@
-import { Client, type Room } from "@colyseus/sdk";
-
-import {
-  type ClientGameState,
-  type HopRejection,
-  type HopRequest,
-  normalizeRoomCode,
+import { type ConnectionStatus, MultiplayerClient } from "@falling-platforms/client-sdk";
+import type {
+  ClientGameState,
+  FallingPlatformsCommand,
+  HopRejection,
+  HopRequest,
 } from "@falling-platforms/shared";
 
 export type StateListener = (state: ClientGameState) => void;
@@ -13,32 +12,62 @@ export type LeaveListener = () => void;
 export type DroppedListener = () => void;
 
 /**
- * Thin wrapper around the official Colyseus SDK. Keeps all transport concerns
- * in one place so scenes and UI never talk to the SDK directly.
+ * Falling Platforms client API on top of the framework-independent
+ * multiplayer SDK. Scenes and UI never talk to the SDK directly.
  */
 export class GameClient {
-  private client: Client;
-  private room: Room<ClientGameState> | null = null;
-  private stateListeners = new Set<StateListener>();
-  private rejectionListeners = new Set<RejectionListener>();
-  private leaveListeners = new Set<LeaveListener>();
-  private droppedListeners = new Set<DroppedListener>();
-  private reconnectedListeners = new Set<DroppedListener>();
+  private readonly client: MultiplayerClient<ClientGameState, FallingPlatformsCommand>;
+  private readonly stateListeners = new Set<StateListener>();
+  private readonly rejectionListeners = new Set<RejectionListener>();
+  private readonly leaveListeners = new Set<LeaveListener>();
+  private readonly droppedListeners = new Set<DroppedListener>();
+  private readonly reconnectedListeners = new Set<DroppedListener>();
   private intentionalLeave = false;
 
   sessionId = "";
   reconnectionToken = "";
 
   constructor(serverUrl: string) {
-    this.client = new Client(serverUrl);
+    this.client = new MultiplayerClient<ClientGameState, FallingPlatformsCommand>({
+      serverUrl,
+      storageKey: "falling-platforms:connection",
+    });
+    this.client.onStateChange((state) => {
+      for (const listener of this.stateListeners) {
+        listener(state);
+      }
+    });
+    this.client.onMessage<HopRejection>("hop-rejected", (rejection) => {
+      for (const listener of this.rejectionListeners) {
+        listener(rejection);
+      }
+    });
+    this.client.onConnectionChange((status: ConnectionStatus) => {
+      this.syncMembership();
+      if (status === "reconnecting") {
+        for (const listener of this.droppedListeners) {
+          listener();
+        }
+      } else if (status === "connected") {
+        for (const listener of this.reconnectedListeners) {
+          listener();
+        }
+      } else if (status === "disconnected") {
+        this.sessionId = "";
+        this.reconnectionToken = "";
+        for (const listener of this.leaveListeners) {
+          listener();
+        }
+      }
+    });
   }
 
   get isConnected(): boolean {
-    return this.room !== null;
+    return this.client.getConnectionStatus() === "connected";
   }
 
   getState(): ClientGameState | null {
-    return this.room?.state ?? null;
+    return this.client.getState();
   }
 
   get didLeaveIntentionally(): boolean {
@@ -60,83 +89,56 @@ export class GameClient {
     return () => this.leaveListeners.delete(listener);
   }
 
-  /** Fires when the connection drops and automatic reconnection begins. */
   onDropped(listener: DroppedListener): () => void {
     this.droppedListeners.add(listener);
     return () => this.droppedListeners.delete(listener);
   }
 
-  /** Fires when the SDK successfully reconnects after a drop. */
   onReconnected(listener: DroppedListener): () => void {
     this.reconnectedListeners.add(listener);
     return () => this.reconnectedListeners.delete(listener);
   }
 
   async createRoom(name: string): Promise<void> {
-    const room = await this.client.create<ClientGameState>("falling_platforms", { name });
-    this.attach(room);
+    this.intentionalLeave = false;
+    await this.client.createRoom({ gameId: "falling_platforms", name });
   }
 
   async joinRoom(name: string, code: string): Promise<void> {
-    const room = await this.client.joinById<ClientGameState>(normalizeRoomCode(code), { name });
-    this.attach(room);
+    this.intentionalLeave = false;
+    await this.client.joinRoom({ roomCode: code, name });
   }
 
   async reconnect(token: string): Promise<void> {
-    const room = await this.client.reconnect<ClientGameState>(token);
-    this.attach(room);
+    this.intentionalLeave = false;
+    await this.client.reconnect(token);
   }
 
   sendHop(request: HopRequest): void {
-    this.room?.send("hop", request);
+    const command: FallingPlatformsCommand = {
+      type: "hop",
+      sequence: request.sequence,
+      targetPlatformId: request.targetPlatformId,
+    };
+    this.client.sendGameCommand(command);
   }
 
   startMatch(): void {
-    this.room?.send("start", {});
+    void this.client.startGame().catch(() => {
+      // Expected failures surface through the connection/error events; the
+      // lobby UI does not need per-request error handling.
+    });
   }
 
-  leave(): Promise<number> {
-    if (!this.room) {
-      return Promise.resolve(0);
-    }
+  async leave(): Promise<number> {
     this.intentionalLeave = true;
-    return this.room.leave();
+    await this.client.leave();
+    return 0;
   }
 
-  private attach(room: Room<ClientGameState>): void {
-    this.intentionalLeave = false;
-    this.room = room;
-    this.sessionId = room.sessionId;
-    this.reconnectionToken = room.reconnectionToken;
-    // Recover from drops even in the first seconds of the room's life (the SDK
-    // default disables automatic reconnection for the first five seconds).
-    room.reconnection.minUptime = 0;
-
-    room.onStateChange((state) => {
-      for (const listener of this.stateListeners) {
-        listener(state);
-      }
-    });
-    room.onMessage("hop-rejected", (rejection: HopRejection) => {
-      for (const listener of this.rejectionListeners) {
-        listener(rejection);
-      }
-    });
-    room.onDrop(() => {
-      for (const listener of this.droppedListeners) {
-        listener();
-      }
-    });
-    room.onReconnect(() => {
-      for (const listener of this.reconnectedListeners) {
-        listener();
-      }
-    });
-    room.onLeave(() => {
-      this.room = null;
-      for (const listener of this.leaveListeners) {
-        listener();
-      }
-    });
+  private syncMembership(): void {
+    const membership = this.client.getMembership();
+    this.sessionId = membership?.sessionId ?? "";
+    this.reconnectionToken = this.client.getReconnectionToken() ?? "";
   }
 }

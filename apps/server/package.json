@@ -12,13 +12,19 @@
   },
   "dependencies": {
     "@colyseus/schema": "^4.0.30",
+    "@falling-platforms/capital-pin": "workspace:*",
+    "@falling-platforms/platform-schema": "workspace:*",
+    "@falling-platforms/platform-server": "workspace:*",
+    "@falling-platforms/platform-shared": "workspace:*",
     "@falling-platforms/shared": "workspace:*",
+    "@falling-platforms/tap-race": "workspace:*",
     "colyseus": "^0.17.10",
     "express": "^5.2.1",
     "seedrandom": "^3.0.5"
   },
   "devDependencies": {
     "@colyseus/testing": "^0.17.11",
+    "@falling-platforms/client-sdk": "workspace:*",
     "@types/express": "^5.0.6",
     "@types/node": "^24.0.0",
     "@types/seedrandom": "^3.0.8",

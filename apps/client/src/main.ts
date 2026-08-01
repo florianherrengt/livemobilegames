@@ -48,6 +48,13 @@ screens = setupScreens({
       });
     }
   },
+  onCopyInvite: (url) => {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).catch(() => {
+        // Clipboard may be unavailable; the link stays visible on screen.
+      });
+    }
+  },
   onStartMatch: () => {
     client.startMatch();
   },
@@ -55,6 +62,36 @@ screens = setupScreens({
     client.leave();
   },
 });
+
+// Auto-connect when handed off from the launcher via ?name=&code=, or when an
+// invite link (?code=) is opened: join with the saved name when available,
+// otherwise pre-fill the code and let the visitor enter a name.
+(() => {
+  const params = new URLSearchParams(window.location.search);
+  const name = params.get("name");
+  const code = params.get("code")?.toUpperCase() ?? "";
+  if (name) {
+    if (code) {
+      client.joinRoom(name, code).catch((error: unknown) => {
+        screens.showHome(messageFrom(error));
+      });
+    } else {
+      client.createRoom(name).catch((error: unknown) => {
+        screens.showHome(messageFrom(error));
+      });
+    }
+    return;
+  }
+  if (!code) return;
+  const savedName = screens.getSavedName();
+  if (savedName) {
+    client.joinRoom(savedName, code).catch((error: unknown) => {
+      screens.prefillJoin(code, messageFrom(error));
+    });
+  } else {
+    screens.prefillJoin(code);
+  }
+})();
 
 client.onStateChange((state) => {
   if (!game) {

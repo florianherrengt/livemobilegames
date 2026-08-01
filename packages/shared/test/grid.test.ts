@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  computeArenaSide,
-  hopEaseOut,
-  isAdjacent,
-  normalizeRoomCode,
-  parsePlatformId,
-} from "../src/index.js";
+import { computeArenaSide, hopEaseOut, isAdjacent, parsePlatformId } from "../src/index.js";
 
 describe("grid adjacency", () => {
   it("accepts orthogonal neighbours", () => {
@@ -61,9 +55,5 @@ describe("ids", () => {
     expect(parsePlatformId("a:b")).toBeNull();
     expect(parsePlatformId("3:-4")).toBeNull();
     expect(parsePlatformId("")).toBeNull();
-  });
-
-  it("normalises room codes to uppercase", () => {
-    expect(normalizeRoomCode("  ab3de ")).toBe("AB3DE");
   });
 });

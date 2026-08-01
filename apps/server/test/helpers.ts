@@ -1,14 +1,14 @@
-import { DIFFICULTY_SCHEDULE, HOP_DURATION_MS } from "@falling-platforms/shared";
-import seedrandom from "seedrandom";
-
-import { addPlayer, createRuntime } from "../src/game/match.js";
-import { createPlatforms } from "../src/game/spawning.js";
 import type {
   MatchRuntime,
   MatchSettings,
   RuntimePlatform,
   RuntimePlayer,
-} from "../src/game/types.js";
+} from "@falling-platforms/shared";
+import { DIFFICULTY_SCHEDULE, HOP_DURATION_MS } from "@falling-platforms/shared";
+import seedrandom from "seedrandom";
+
+import { addPlayer, createRuntime } from "../src/game/match.js";
+import { createPlatforms } from "../src/game/spawning.js";
 
 export function makeRuntime(overrides: Partial<MatchSettings> = {}): MatchRuntime {
   const settings: MatchSettings = {
@@ -22,7 +22,7 @@ export function makeRuntime(overrides: Partial<MatchSettings> = {}): MatchRuntim
     schedule: DIFFICULTY_SCHEDULE,
     ...overrides,
   };
-  const runtime = createRuntime("TESTA", settings);
+  const runtime = createRuntime(settings);
   runtime.arenaSide = 7;
   runtime.platforms = new Map(createPlatforms(7).map((platform) => [platform.id, platform]));
   runtime.phase = "playing";

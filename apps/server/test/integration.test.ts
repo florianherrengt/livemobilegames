@@ -1,8 +1,6 @@
 import { boot, type ColyseusTestServer } from "@colyseus/testing";
+import type { FallingPlatformsState } from "@falling-platforms/shared";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-
-import { appConfig } from "../src/app.config.js";
-import type { FallingPlatformsRoom } from "../src/rooms/FallingPlatformsRoom.js";
 
 const ROOM_CODE_PATTERN = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{5}$/;
 
@@ -39,6 +37,7 @@ describe("room integration", () => {
 
   beforeAll(async () => {
     process.env.E2E_TEST_MODE = "true";
+    const { appConfig } = await import("../src/app.config.js");
     colyseus = await boot(appConfig);
   });
 
@@ -78,11 +77,11 @@ describe("room integration", () => {
     const bob = await connect(colyseus, room, { name: "Bob" });
     await waitFor(() => room.state.players.size === 2, 5_000, "two players");
 
-    bob.send("start", {});
+    bob.send("platform:start", { requestId: "bob-start" });
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(room.state.phase).toBe("lobby");
 
-    alice.send("start", {});
+    alice.send("platform:start", { requestId: "alice-start" });
     await waitFor(() => room.state.phase === "countdown", 5_000, "countdown");
     await waitFor(
       () => alice.state.phase === "countdown" && bob.state.phase === "countdown",
@@ -97,7 +96,7 @@ describe("room integration", () => {
     const bob = await connect(colyseus, room, { name: "Bob" });
     await waitFor(() => room.state.players.size === 2, 5_000, "two players");
 
-    alice.send("start", {});
+    alice.send("platform:start", { requestId: "alice-start" });
     await waitFor(() => room.state.phase === "playing", 10_000, "playing phase");
     await waitFor(
       () => alice.state.phase === "playing" && bob.state.phase === "playing",
@@ -112,7 +111,9 @@ describe("room integration", () => {
     expect(bob.state.platforms.size).toBe(49);
 
     // An accepted hop updates authoritative state and both clients.
-    alice.send("hop", { sequence: 1, targetPlatformId: "4:4" });
+    alice.send("game:command", {
+      command: { type: "hop", sequence: 1, targetPlatformId: "4:4" },
+    });
     await waitFor(
       () => room.state.players.get(alice.sessionId)?.currentPlatformId === "4:4",
       10_000,
@@ -126,7 +127,9 @@ describe("room integration", () => {
     expect(bob.state.players.get(alice.sessionId)?.currentPlatformId).toBe("4:4");
 
     // An invalid hop is rejected with a machine-readable reason.
-    bob.send("hop", { sequence: 1, targetPlatformId: "0:0" });
+    bob.send("game:command", {
+      command: { type: "hop", sequence: 1, targetPlatformId: "0:0" },
+    });
     const rejection = await bob.waitForMessage("hop-rejected", 5_000);
     expect(rejection.reason).toBe("not-adjacent");
     expect(rejection.sequence).toBe(1);
@@ -171,7 +174,7 @@ describe("room integration", () => {
     await waitFor(() => room.state.phase === "lobby", 10_000, "back to lobby");
     expect(room.state.players.size).toBe(2);
     expect(room.state.platforms.size).toBe(0);
-    alice.send("start", {});
+    alice.send("platform:start", { requestId: "alice-start" });
     await waitFor(() => room.state.phase === "playing", 10_000, "second round playing");
     expect(alice.state.arenaSide).toBe(7);
   });
@@ -182,7 +185,7 @@ describe("room integration", () => {
     const _bob = await colyseus.connectTo(room, { name: "Bob" });
     await waitFor(() => room.state.players.size === 2, 5_000, "two players");
 
-    alice.send("start", {});
+    alice.send("platform:start", { requestId: "alice-start" });
     await waitFor(() => room.state.phase === "playing", 10_000, "playing phase");
 
     const carol = await connect(colyseus, room, { name: "Carol" });
@@ -234,11 +237,13 @@ describe("room integration", () => {
     const alice = await connect(colyseus, room, { name: "Alice" });
     await connect(colyseus, room, { name: "Bob" });
     await waitFor(() => room.state.players.size === 2, 5_000, "two players");
-    alice.send("start", {});
+    alice.send("platform:start", { requestId: "alice-start" });
     await waitFor(() => room.state.phase === "playing", 10_000, "playing phase");
 
     // Spawns are Alice 3:3 and Bob 3:4; Bob stands on 3:4.
-    alice.send("hop", { sequence: 1, targetPlatformId: "3:4" });
+    alice.send("game:command", {
+      command: { type: "hop", sequence: 1, targetPlatformId: "3:4" },
+    });
     const rejection = await alice.waitForMessage("hop-rejected", 5_000);
     expect(rejection.reason).toBe("target-occupied");
     expect(room.state.players.get(alice.sessionId)?.currentPlatformId).toBe("3:3");
@@ -249,18 +254,22 @@ describe("room integration", () => {
     const alice = await connect(colyseus, room, { name: "Alice" });
     const bob = await connect(colyseus, room, { name: "Bob" });
     await waitFor(() => room.state.players.size === 2, 5_000, "two players");
-    alice.send("start", {});
+    alice.send("platform:start", { requestId: "alice-start" });
     await waitFor(() => room.state.phase === "playing", 10_000, "playing phase");
 
     // Both players are adjacent to 4:3. Alice commits first, Bob must be
     // rejected while Alice is still in flight.
-    alice.send("hop", { sequence: 1, targetPlatformId: "4:3" });
+    alice.send("game:command", {
+      command: { type: "hop", sequence: 1, targetPlatformId: "4:3" },
+    });
     await waitFor(
       () => room.state.players.get(alice.sessionId)?.jumping === true,
       5_000,
       "alice airborne to 4:3",
     );
-    bob.send("hop", { sequence: 1, targetPlatformId: "4:3" });
+    bob.send("game:command", {
+      command: { type: "hop", sequence: 1, targetPlatformId: "4:3" },
+    });
     const rejection = await bob.waitForMessage("hop-rejected", 5_000);
     expect(rejection.reason).toBe("target-occupied");
     expect(room.state.players.get(bob.sessionId)?.currentPlatformId).toBe("3:4");
@@ -271,13 +280,16 @@ describe("room integration", () => {
     const alice = await connect(colyseus, room, { name: "Alice" });
     const bob = await connect(colyseus, room, { name: "Bob" });
     await waitFor(() => room.state.players.size === 2, 5_000, "two players");
-    alice.send("start", {});
+    alice.send("platform:start", { requestId: "alice-start" });
     await waitFor(() => room.state.phase === "playing", 10_000, "playing phase");
 
     // Force both spawn platforms to disappear in the same server update, so
     // both grounded players are eliminated before the result is evaluated.
-    const runtime = (room as unknown as FallingPlatformsRoom).runtime;
-    const now = room.clock.currentTime;
+    const runtime = (room.state as FallingPlatformsState).runtime;
+    if (!runtime) {
+      throw new Error("missing falling platforms runtime");
+    }
+    const now = Date.now();
     for (const id of ["3:3", "3:4"]) {
       const platform = runtime.platforms.get(id);
       if (platform) {

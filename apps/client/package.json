@@ -10,11 +10,12 @@
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
-    "@colyseus/sdk": "^0.17.43",
+    "@falling-platforms/client-sdk": "workspace:*",
     "@falling-platforms/shared": "workspace:*",
     "phaser": "^4.2.1"
   },
   "devDependencies": {
+    "@types/node": "^24.0.0",
     "typescript": "^5.9.3",
     "vite": "^8.2.0"
   }

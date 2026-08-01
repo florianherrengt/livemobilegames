@@ -1,16 +1,20 @@
-import { computeArenaSide, E2E_MATCH_SEED, platformId } from "@falling-platforms/shared";
+import {
+  computeArenaSide,
+  E2E_MATCH_SEED,
+  type MatchRuntime,
+  type MatchSettings,
+  platformId,
+  type RuntimePlayer,
+} from "@falling-platforms/shared";
 import seedrandom from "seedrandom";
 
 import { resolveLanding } from "./hopping.js";
 import { selectAndWarnPlatforms, transitionWarningsToGone } from "./platforms.js";
 import { createPlatforms, selectSpawns } from "./spawning.js";
-import type { MatchRuntime, MatchSettings, RuntimePlayer } from "./types.js";
 
-export function createRuntime(roomCode: string, settings: MatchSettings): MatchRuntime {
+export function createRuntime(settings: MatchSettings): MatchRuntime {
   return {
     phase: "lobby",
-    hostSessionId: "",
-    roomCode,
     winnerSessionId: "",
     draw: false,
     roundNumber: 0,
@@ -21,6 +25,7 @@ export function createRuntime(roomCode: string, settings: MatchSettings): MatchR
     resultsEndsAt: 0,
     nextWarningAt: 0,
     firstRemovalCycleDone: false,
+    resultsNotified: false,
     seed: "",
     rng: Math.random,
     players: new Map(),
@@ -51,9 +56,6 @@ export function addPlayer(
     joinedOrder,
   };
   runtime.players.set(sessionId, player);
-  if (!runtime.hostSessionId) {
-    runtime.hostSessionId = sessionId;
-  }
   return player;
 }
 
@@ -217,12 +219,6 @@ export function updateMatch(runtime: MatchRuntime, now: number): void {
 
 /** Resets all transient round state and returns everyone to the lobby. */
 export function returnToLobby(runtime: MatchRuntime): void {
-  for (const [sessionId, player] of runtime.players) {
-    if (!player.connected) {
-      runtime.players.delete(sessionId);
-    }
-  }
-
   runtime.phase = "lobby";
   runtime.winnerSessionId = "";
   runtime.draw = false;
@@ -246,35 +242,20 @@ export function returnToLobby(runtime: MatchRuntime): void {
     player.jumpEndsAt = 0;
     player.lastAcceptedSequence = 0;
   }
-
-  reassignHost(runtime);
-}
-
-/** The oldest remaining connected player becomes host. */
-export function reassignHost(runtime: MatchRuntime): void {
-  const candidates = [...runtime.players.values()]
-    .filter((player) => player.connected)
-    .sort((a, b) => a.joinedOrder - b.joinedOrder);
-  runtime.hostSessionId = candidates[0]?.sessionId ?? "";
 }
 
 /**
- * Handles a permanent leave. In the lobby the player is removed; during a
- * match they are eliminated so the round can still finish.
+ * Removes a permanently departed player from the runtime so the round can
+ * still finish. The platform owns the player row and host transfer.
  */
-export function handlePlayerLeave(runtime: MatchRuntime, sessionId: string, now: number): void {
+export function removePlayer(runtime: MatchRuntime, sessionId: string, now: number): void {
   const player = runtime.players.get(sessionId);
   if (!player) {
     return;
   }
-  if (runtime.phase === "lobby") {
-    runtime.players.delete(sessionId);
-  } else {
-    eliminatePlayer(runtime, player);
-    recomputeAliveCount(runtime);
-    if (runtime.phase === "playing") {
-      evaluateMatchEnd(runtime, now);
-    }
+  runtime.players.delete(sessionId);
+  recomputeAliveCount(runtime);
+  if (runtime.phase === "playing") {
+    evaluateMatchEnd(runtime, now);
   }
-  reassignHost(runtime);
 }

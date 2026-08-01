@@ -1,7 +1,10 @@
-import { type DifficultyStep, E2E_FIRST_TARGET } from "@falling-platforms/shared";
+import {
+  type DifficultyStep,
+  E2E_FIRST_TARGET,
+  type MatchRuntime,
+} from "@falling-platforms/shared";
 
 import { shuffle } from "./spawning.js";
-import type { MatchRuntime } from "./types.js";
 
 /** Marks every due warning platform as gone and returns the newly gone ids. */
 export function transitionWarningsToGone(runtime: MatchRuntime, now: number): string[] {

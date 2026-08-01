@@ -1,0 +1,35 @@
+{
+  "name": "@falling-platforms/platform-test",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@colyseus/sdk": "^0.17.43",
+    "@colyseus/testing": "^0.17.11",
+    "@falling-platforms/client-sdk": "workspace:*",
+    "@falling-platforms/platform-schema": "workspace:*",
+    "@falling-platforms/platform-server": "workspace:*",
+    "@falling-platforms/platform-shared": "workspace:*",
+    "colyseus": "^0.17.10"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

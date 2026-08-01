@@ -1,12 +1,11 @@
-import { appConfig } from "./app.config.js";
-
-const port = Number(process.env.PORT ?? 2567);
-const host = process.env.HOST ?? "0.0.0.0";
+import { appConfig, serverConfig } from "./app.config.js";
 
 appConfig
-  .listen(port, host)
+  .listen(serverConfig.port, serverConfig.host)
   .then(() => {
-    console.log(`[falling-platforms] server listening on ${host}:${port}`);
+    console.log(
+      `[falling-platforms] server listening on ${serverConfig.host}:${serverConfig.port}`,
+    );
   })
   .catch((error: unknown) => {
     console.error("[falling-platforms] failed to start server", error);

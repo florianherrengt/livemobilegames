@@ -20,7 +20,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "nanoid": "^6.0.0",
+    "@colyseus/schema": "^4.0.30",
+    "@falling-platforms/platform-schema": "workspace:*",
+    "@falling-platforms/platform-shared": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {

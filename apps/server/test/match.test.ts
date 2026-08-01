@@ -4,8 +4,7 @@ import {
   addPlayer,
   eliminatePlayer,
   evaluateMatchEnd,
-  handlePlayerLeave,
-  reassignHost,
+  removePlayer,
   returnToLobby,
   startMatch,
   updateMatch,
@@ -123,34 +122,6 @@ describe("match results", () => {
   });
 });
 
-describe("host assignment", () => {
-  it("makes the first connected player host", () => {
-    const runtime = makeRuntime();
-    addPlayer(runtime, "p1", "P1", 0);
-    addPlayer(runtime, "p2", "P2", 1);
-    expect(runtime.hostSessionId).toBe("p1");
-  });
-
-  it("reassigns host to the oldest remaining connected player", () => {
-    const runtime = makeRuntime();
-    addPlayer(runtime, "p1", "P1", 0);
-    addPlayer(runtime, "p2", "P2", 1);
-    addPlayer(runtime, "p3", "P3", 2);
-    player(runtime, "p1").connected = false;
-    handlePlayerLeave(runtime, "p1", 0);
-    expect(runtime.hostSessionId).toBe("p2");
-  });
-
-  it("does not reassign host while the host is merely disconnected", () => {
-    const runtime = makeRuntime();
-    addPlayer(runtime, "p1", "P1", 0);
-    addPlayer(runtime, "p2", "P2", 1);
-    player(runtime, "p1").connected = false;
-    reassignHost(runtime);
-    expect(runtime.hostSessionId).toBe("p2");
-  });
-});
-
 describe("room membership", () => {
   it("makes players joining during a match spectators", () => {
     const runtime = makeRuntime();
@@ -160,23 +131,24 @@ describe("room membership", () => {
     expect(late.alive).toBe(false);
   });
 
-  it("removes a player from the lobby on permanent leave", () => {
+  it("removes a player from the runtime on permanent leave", () => {
     const runtime = makeRuntime();
     runtime.phase = "lobby";
     addPlayer(runtime, "p1", "P1", 0);
     addPlayer(runtime, "p2", "P2", 1);
-    handlePlayerLeave(runtime, "p1", 0);
+    removePlayer(runtime, "p1", 0);
     expect(runtime.players.has("p1")).toBe(false);
-    expect(runtime.hostSessionId).toBe("p2");
   });
 
-  it("eliminates a player on permanent leave during a match", () => {
+  it("removes a player and evaluates the result on permanent leave during a match", () => {
     const runtime = makeRuntime();
     const player = addPlayerAt(runtime, "p1", "P1", "3:3");
     addPlayerAt(runtime, "p2", "P2", "3:4");
-    handlePlayerLeave(runtime, "p1", 0);
-    expect(runtime.players.has("p1")).toBe(true);
-    expect(player.alive).toBe(false);
+    removePlayer(runtime, "p1", 0);
+    expect(runtime.players.has("p1")).toBe(false);
+    expect(player.participating).toBe(true);
+    expect(runtime.phase).toBe("results");
+    expect(runtime.winnerSessionId).toBe("p2");
   });
 
   it("does not evaluate match end outside the playing phase", () => {

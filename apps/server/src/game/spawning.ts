@@ -1,6 +1,9 @@
-import { computeArenaSide, E2E_SPAWNS, platformId } from "@falling-platforms/shared";
-
-import type { RuntimePlatform } from "./types.js";
+import {
+  computeArenaSide,
+  E2E_SPAWNS,
+  platformId,
+  type RuntimePlatform,
+} from "@falling-platforms/shared";
 
 export { computeArenaSide };
 

@@ -8,20 +8,17 @@ import {
   E2E_REMOVAL_INTERVAL_MS,
   HOP_DURATION_MS,
   INITIAL_SAFE_PERIOD_MS,
+  type MatchSettings,
   PLATFORM_WARNING_MS,
   RESULTS_DISPLAY_MS,
 } from "@falling-platforms/shared";
-
-import type { MatchSettings } from "./types.js";
 
 const E2E_SCHEDULE: DifficultyStep[] = [
   { untilSeconds: Number.POSITIVE_INFINITY, batchSize: 1, intervalMs: E2E_REMOVAL_INTERVAL_MS },
 ];
 
-export function buildSettings(): MatchSettings {
-  const e2eMode = process.env.E2E_TEST_MODE === "true";
-  const allowSolo = process.env.ALLOW_SOLO === "true";
-
+export function buildSettings(options: { e2eMode: boolean; allowSolo: boolean }): MatchSettings {
+  const { e2eMode, allowSolo } = options;
   if (e2eMode) {
     return {
       allowSolo,

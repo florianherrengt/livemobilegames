@@ -16,7 +16,7 @@ async function openPhone(browser: Browser): Promise<Page> {
 }
 
 async function createRoom(page: Page, name: string): Promise<string> {
-  await page.goto("/");
+  await page.goto("/falling-platforms/");
   await page.locator("#name-input").fill(name);
   await page.locator("#create-button").tap();
   await expect(page.locator("#lobby-code")).not.toBeEmpty({ timeout: 15_000 });
@@ -24,7 +24,7 @@ async function createRoom(page: Page, name: string): Promise<string> {
 }
 
 async function joinRoom(page: Page, name: string, code: string): Promise<void> {
-  await page.goto("/");
+  await page.goto("/falling-platforms/");
   await page.locator("#name-input").fill(name);
   await page.locator("#code-input").fill(code);
   await page.locator("#join-button").tap();
@@ -205,12 +205,58 @@ test("two phones play a full deterministic round and a second round", async ({ b
 
 test("shows a clear error when joining a room that does not exist", async ({ browser }) => {
   const page = await openPhone(browser);
-  await page.goto("/");
+  await page.goto("/falling-platforms/");
   await page.locator("#name-input").fill("Lonely");
   await page.locator("#code-input").fill("ZZZZZ");
   await page.locator("#join-button").tap();
   await expect(page.locator("#home-error")).toBeVisible({ timeout: 15_000 });
   await page.close();
+});
+
+test("invite link auto-joins visitors and shows a QR code", async ({ browser }) => {
+  const alice = await openPhone(browser);
+  const code = await createRoom(alice, "Alice");
+
+  // The lobby shows a shareable invite URL and a QR code for it.
+  const inviteUrlInput = alice.locator("#invite-url");
+  await expect(inviteUrlInput).not.toHaveValue("");
+  const inviteUrl = await inviteUrlInput.inputValue();
+  expect(inviteUrl).toContain(`code=${code}`);
+  await expect(alice.locator("#invite-qr canvas")).toBeVisible({ timeout: 10_000 });
+
+  // A visitor with a saved name joins automatically from the invite link.
+  const bobContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    screen: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
+  });
+  await bobContext.addInitScript((savedName) => {
+    localStorage.setItem("falling-platforms-name", savedName);
+  }, "Bob");
+  const bob = await bobContext.newPage();
+  await bob.goto(inviteUrl);
+  await expect(bob.locator("#lobby-code")).toHaveText(code, { timeout: 15_000 });
+  await waitForPlayers(alice, 2);
+  await waitForPlayers(bob, 2);
+
+  // A visitor without a saved name gets the code pre-filled and a hint.
+  const strangerContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    screen: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
+  });
+  const stranger = await strangerContext.newPage();
+  await stranger.goto(inviteUrl);
+  await expect(stranger.locator("#home-hint")).toContainText(code);
+  await expect(stranger.locator("#code-input")).toHaveValue(code);
+
+  await alice.close();
+  await bob.close();
+  await stranger.close();
 });
 
 test("recovers from a dropped connection and regains control", async ({ browser }) => {

@@ -1,9 +1,11 @@
+import { buildInviteUrl, renderQrCode } from "@falling-platforms/client-sdk";
 import { type ClientGameState, NAME_MAX_LENGTH } from "@falling-platforms/shared";
 
 export type ScreenHandlers = {
   onCreateRoom: (name: string) => void;
   onJoinRoom: (name: string, code: string) => void;
   onCopyCode: (code: string) => void;
+  onCopyInvite: (url: string) => void;
   onStartMatch: () => void;
   onLeaveRoom: () => void;
 };
@@ -18,6 +20,8 @@ export type ScreensApi = {
   hideCountdown: () => void;
   showResults: (state: ClientGameState) => void;
   hideResults: () => void;
+  prefillJoin: (code: string, error?: string) => void;
+  getSavedName: () => string;
 };
 
 const STORAGE_KEY = "falling-platforms-name";
@@ -27,6 +31,7 @@ export function setupScreens(handlers: ScreenHandlers): ScreensApi {
   if (!app) {
     throw new Error("#app element not found");
   }
+  let renderedInviteCode = "";
 
   app.innerHTML = `
     <section id="home-screen" class="screen">
@@ -57,6 +62,7 @@ export function setupScreens(handlers: ScreenHandlers): ScreensApi {
       />
       <button id="join-button" class="button" type="button">Join room</button>
       <p id="home-error" class="error hidden" role="alert"></p>
+      <p id="home-hint" class="hint hidden"></p>
     </section>
 
     <section id="lobby-screen" class="screen hidden">
@@ -65,6 +71,13 @@ export function setupScreens(handlers: ScreenHandlers): ScreensApi {
         <span class="lobby-code-label">Room</span>
         <span id="lobby-code" class="lobby-code"></span>
         <button id="copy-button" class="button small" type="button">Copy</button>
+      </div>
+      <div class="invite-panel">
+        <div class="invite-row">
+          <input id="invite-url" class="invite-url" type="text" readonly aria-label="Invite link" />
+          <button id="copy-invite-button" class="button small" type="button">Copy link</button>
+        </div>
+        <div id="invite-qr" class="invite-qr"></div>
       </div>
       <h2 class="section-title">Players</h2>
       <ul id="player-list" class="player-list"></ul>
@@ -99,7 +112,10 @@ export function setupScreens(handlers: ScreenHandlers): ScreensApi {
   const nameInput = getElement<HTMLInputElement>("name-input");
   const codeInput = getElement<HTMLInputElement>("code-input");
   const homeError = getElement<HTMLElement>("home-error");
+  const homeHint = getElement<HTMLElement>("home-hint");
   const lobbyCode = getElement<HTMLElement>("lobby-code");
+  const inviteUrlInput = getElement<HTMLInputElement>("invite-url");
+  const inviteQr = getElement<HTMLElement>("invite-qr");
   const playerList = getElement<HTMLUListElement>("player-list");
   const startButton = getElement<HTMLButtonElement>("start-button");
   const waitingMessage = getElement<HTMLElement>("waiting-message");
@@ -143,6 +159,10 @@ export function setupScreens(handlers: ScreenHandlers): ScreensApi {
     handlers.onCopyCode(lobbyCode.textContent ?? "");
   });
 
+  getElement<HTMLButtonElement>("copy-invite-button").addEventListener("click", () => {
+    handlers.onCopyInvite(inviteUrlInput.value);
+  });
+
   startButton.addEventListener("click", () => {
     handlers.onStartMatch();
   });
@@ -172,6 +192,7 @@ export function setupScreens(handlers: ScreenHandlers): ScreensApi {
       } else {
         homeError.classList.add("hidden");
       }
+      homeHint.classList.add("hidden");
     },
 
     showLobby(state, localSessionId): void {
@@ -225,10 +246,39 @@ export function setupScreens(handlers: ScreenHandlers): ScreensApi {
     hideResults(): void {
       resultsOverlay.classList.add("hidden");
     },
+
+    prefillJoin(code, error): void {
+      homeScreen.classList.remove("hidden");
+      lobbyScreen.classList.add("hidden");
+      gameScreen.classList.add("hidden");
+      hideCountdown();
+      hideResults();
+      codeInput.value = code;
+      homeHint.textContent = `Enter your name to join room ${code}`;
+      homeHint.classList.remove("hidden");
+      if (error) {
+        homeError.textContent = error;
+        homeError.classList.remove("hidden");
+      } else {
+        homeError.classList.add("hidden");
+      }
+    },
+
+    getSavedName(): string {
+      return localStorage.getItem(STORAGE_KEY) ?? "";
+    },
   };
 
   function renderLobby(state: ClientGameState, localSessionId: string): void {
     lobbyCode.textContent = state.roomCode;
+    const inviteUrl = buildInviteUrl(state.roomCode, window.location.href);
+    inviteUrlInput.value = inviteUrl;
+    if (renderedInviteCode !== state.roomCode) {
+      renderedInviteCode = state.roomCode;
+      void renderQrCode(inviteQr, inviteUrl).catch(() => {
+        // QR rendering is best-effort; the invite link remains available.
+      });
+    }
     playerList.replaceChildren(
       ...[...state.players.entries()]
         .sort((a, b) => a[1].joinedOrder - b[1].joinedOrder)
