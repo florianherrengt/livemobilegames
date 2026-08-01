@@ -1,0 +1,29 @@
+{
+  "name": "@falling-platforms/server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@colyseus/schema": "^4.0.30",
+    "@falling-platforms/shared": "workspace:*",
+    "colyseus": "^0.17.10",
+    "express": "^5.2.1",
+    "seedrandom": "^3.0.5"
+  },
+  "devDependencies": {
+    "@colyseus/testing": "^0.17.11",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.0.0",
+    "@types/seedrandom": "^3.0.8",
+    "tsx": "^4.23.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "falling-platforms",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Falling Platforms — a mobile multiplayer tap-to-hop game.",
+  "packageManager": "pnpm@10.33.4",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @falling-platforms/shared build && concurrently -k -n server,client \"pnpm --filter @falling-platforms/server dev\" \"pnpm --filter @falling-platforms/client dev\"",
+    "build": "pnpm -r build",
+    "start": "pnpm --filter @falling-platforms/server start",
+    "test": "pnpm --filter @falling-platforms/shared build && pnpm -r test",
+    "test:e2e": "pnpm build && pnpm exec playwright test -c apps/client/e2e/playwright.config.ts",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm exec biome check .",
+    "format": "pnpm exec biome check --write .",
+    "postinstall": "pnpm exec playwright install chromium"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.6",
+    "@playwright/test": "^1.62.1",
+    "concurrently": "^10.0.4",
+    "typescript": "^5.9.3"
+  }
+}
