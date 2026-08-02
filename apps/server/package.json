@@ -13,6 +13,7 @@
   "dependencies": {
     "@colyseus/schema": "^4.0.30",
     "@falling-platforms/capital-pin": "workspace:*",
+    "@falling-platforms/flappy-race": "workspace:*",
     "@falling-platforms/platform-schema": "workspace:*",
     "@falling-platforms/platform-server": "workspace:*",
     "@falling-platforms/platform-shared": "workspace:*",

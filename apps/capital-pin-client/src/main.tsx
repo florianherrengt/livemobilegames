@@ -3,7 +3,7 @@ import { formatDistanceKm } from "@falling-platforms/capital-pin";
 import { buildInviteUrl, MultiplayerClient, renderQrCode } from "@falling-platforms/client-sdk";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-
+import { geoPinSounds } from "./audio/GeoPinSounds.js";
 import { GameMap, type LngLat, useMap } from "./components/GameMap.js";
 import { MapMarker } from "./components/MapMarker.js";
 import { computeResultsCamera, type Point } from "./map/bounds.js";
@@ -12,6 +12,12 @@ import "./styles.css";
 
 const NAME_STORAGE_KEY = "capital-pin:name";
 const GAME_ID = "capital_pin";
+/**
+ * Distance at which a guess is treated as "as far as it gets" for audio
+ * feedback. Used to map a guess distance to a 0-1 accuracy for the result
+ * sound and to scale the connection-line whoosh duration.
+ */
+const MAX_AUDIO_DISTANCE_KM = 5_000;
 
 function defaultServerUrl(): string {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -156,7 +162,7 @@ function App() {
       {screen === "round" && state && (
         <Round client={client} state={state} selfSessionId={selfSessionId} />
       )}
-      {screen === "results" && state && <Results state={state} />}
+      {screen === "results" && state && <Results state={state} selfSessionId={selfSessionId} />}
       {screen === "finished" && state && (
         <Finished client={client} state={state} selfSessionId={selfSessionId} />
       )}
@@ -341,8 +347,24 @@ export function Round(props: {
   const serverNow = client.getEstimatedServerTime() ?? Date.now();
   const secondsLeft = Math.max(0, Math.ceil((state.roundEndsAt - serverNow) / 1000));
 
+  const handleMapClick = (lngLat: LngLat) => {
+    void geoPinSounds.initialise();
+    const sameSpot = guess?.lng === lngLat.lng && guess?.lat === lngLat.lat;
+    if (sameSpot) return;
+    if (guess) {
+      // Clicking a new position hops the existing pin to it.
+      geoPinSounds.pinMove();
+    } else {
+      // First click drops the pin onto the map.
+      geoPinSounds.pinDrop();
+    }
+    setGuess(lngLat);
+  };
+
   const submit = () => {
     if (!guess) return;
+    void geoPinSounds.initialise();
+    geoPinSounds.guessConfirmed();
     client.sendGameCommand({
       type: "submit",
       roundNumber: state.roundNumber,
@@ -360,7 +382,7 @@ export function Round(props: {
         <span className="capital">{state.currentCapitalName}</span>
         <span className="timer">{secondsLeft}s</span>
       </header>
-      <GameMap onMapClick={setGuess} interactive={!locked}>
+      <GameMap onMapClick={handleMapClick} interactive={!locked}>
         {guess && <MapMarker longitude={guess.lng} latitude={guess.lat} colour="#4363d8" />}
         <SubmittedList players={[...state.players.values()]} />
       </GameMap>
@@ -396,8 +418,15 @@ function SubmittedList({ players }: { players: Array<{ name: string; submitted: 
 
 // --- Results (round-results phase) ---
 
-export function Results({ state }: { state: CapitalPinClientState }) {
+export function Results({
+  state,
+  selfSessionId,
+}: {
+  state: CapitalPinClientState;
+  selfSessionId: string;
+}) {
   const result = state.lastResult;
+
   const points: Point[] = useMemo(() => {
     if (!result) return [];
     return [
@@ -409,7 +438,7 @@ export function Results({ state }: { state: CapitalPinClientState }) {
   return (
     <section className="screen map-screen">
       <GameMap interactive={false}>
-        <ResultsMap result={result} points={points} />
+        <ResultsMap result={result} points={points} selfSessionId={selfSessionId} />
       </GameMap>
       <div className="results-panel">
         <h2>
@@ -440,11 +469,44 @@ export function Results({ state }: { state: CapitalPinClientState }) {
 function ResultsMap({
   result,
   points,
+  selfSessionId,
 }: {
   result: CapitalPinClientState["lastResult"];
   points: Point[];
+  selfSessionId: string;
 }) {
   const map = useMap();
+  const playedRoundRef = useRef(0);
+  const soundTimersRef = useRef<number[]>([]);
+
+  // Play the reveal, score and win sounds once per round result, timed with
+  // the revealed markers appearing. The state object is re-created by the
+  // client on every tick, so guard by round number.
+  useEffect(() => {
+    if (!map || !result || playedRoundRef.current === result.roundNumber) return;
+    playedRoundRef.current = result.roundNumber;
+
+    void geoPinSounds.initialise();
+    geoPinSounds.answerReveal();
+
+    const selfGuess = result.guesses.find((guess) => guess.sessionId === selfSessionId);
+    if (selfGuess) {
+      const accuracy = distanceAccuracy(selfGuess.distanceKm);
+      soundTimersRef.current.push(window.setTimeout(() => geoPinSounds.scoreResult(accuracy), 350));
+    }
+    if (result.winnerSessionIds.includes(selfSessionId)) {
+      soundTimersRef.current.push(window.setTimeout(() => geoPinSounds.roundWin(), 850));
+    }
+  }, [map, result, selfSessionId]);
+
+  // Clear any pending result sounds when the results screen unmounts.
+  useEffect(() => {
+    const timers = soundTimersRef.current;
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer);
+    };
+  }, []);
+
   useEffect(() => {
     if (!map || points.length === 0) return;
     const isMobile = window.innerWidth < 640;
@@ -475,7 +537,108 @@ function ResultsMap({
           colour={getPlayerColour(g.sessionId)}
         />
       ))}
+      {result && <GuessConnectionLines map={map} result={result} selfSessionId={selfSessionId} />}
     </>
+  );
+}
+
+/**
+ * Draws a line from every revealed guess to the capital once the results map
+ * appears, then animates each line in with a short travelling dash. The sound
+ * for the local player's line is played alongside its animation.
+ */
+function GuessConnectionLines({
+  map,
+  result,
+  selfSessionId,
+}: {
+  map: maplibregl.Map;
+  result: NonNullable<CapitalPinClientState["lastResult"]>;
+  selfSessionId: string;
+}) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [animate, setAnimate] = useState(false);
+  const playedRoundRef = useRef(0);
+  const animationRef = useRef({ frame: 0, timer: 0 });
+
+  useEffect(() => {
+    if (typeof map.project !== "function") return;
+
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const draw = () => {
+      const answer = map.project([result.correctLongitude, result.correctLatitude]);
+      result.guesses.forEach((guess, index) => {
+        const line = svg.querySelector<SVGLineElement>(`[data-line-index="${index}"]`);
+        if (!line) return;
+        const point = map.project([guess.longitude, guess.latitude]);
+        line.setAttribute("x1", String(point.x));
+        line.setAttribute("y1", String(point.y));
+        line.setAttribute("x2", String(answer.x));
+        line.setAttribute("y2", String(answer.y));
+      });
+    };
+
+    map.on("move", draw);
+    map.on("zoom", draw);
+    map.on("resize", draw);
+    draw();
+
+    return () => {
+      map.off("move", draw);
+      map.off("zoom", draw);
+      map.off("resize", draw);
+    };
+  }, [map, result]);
+
+  // Kick off the draw-in animation and the whoosh once per revealed round.
+  useEffect(() => {
+    if (typeof map.project !== "function") return;
+    if (playedRoundRef.current === result.roundNumber) return;
+    playedRoundRef.current = result.roundNumber;
+
+    const selfIndex = result.guesses.findIndex((guess) => guess.sessionId === selfSessionId);
+    const selfGuess = selfIndex >= 0 ? result.guesses[selfIndex] : undefined;
+
+    animationRef.current.frame = window.requestAnimationFrame(() => {
+      setAnimate(true);
+      if (selfGuess) {
+        const progress = Math.min(1, selfGuess.distanceKm / MAX_AUDIO_DISTANCE_KM);
+        animationRef.current.timer = window.setTimeout(
+          () => geoPinSounds.connectionWhoosh(progress),
+          selfIndex * 120,
+        );
+      }
+    });
+  }, [map, result, selfSessionId]);
+
+  // Cancel any pending animation work when the results screen unmounts.
+  useEffect(() => {
+    return () => {
+      window.cancelAnimationFrame(animationRef.current.frame);
+      window.clearTimeout(animationRef.current.timer);
+    };
+  }, []);
+
+  if (typeof map.project !== "function" || result.guesses.length === 0) return null;
+
+  return (
+    <svg ref={svgRef} className="guess-lines" aria-hidden="true">
+      {result.guesses.map((guess, index) => (
+        <line
+          key={guess.sessionId}
+          data-line-index={index}
+          className="guess-line"
+          pathLength={1}
+          strokeDasharray={1}
+          strokeDashoffset={animate ? 0 : 1}
+          style={{
+            transition: `stroke-dashoffset 0.6s linear ${index * 0.12}s`,
+          }}
+        />
+      ))}
+    </svg>
   );
 }
 
@@ -544,6 +707,15 @@ function messageOf(error: unknown): string {
     if (typeof message === "string" && message.length > 0) return message;
   }
   return "Could not reach the game server";
+}
+
+/**
+ * Convert a guess distance into a 0-1 audio accuracy. 0 km is a perfect guess
+ * (bright high note) and MAX_AUDIO_DISTANCE_KM or more is a complete miss
+ * (low dull note).
+ */
+function distanceAccuracy(distanceKm: number): number {
+  return Math.max(0, Math.min(1, 1 - distanceKm / MAX_AUDIO_DISTANCE_KM));
 }
 
 const root = document.getElementById("root");

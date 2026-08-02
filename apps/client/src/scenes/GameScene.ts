@@ -11,6 +11,7 @@ import {
 } from "@falling-platforms/shared";
 import Phaser from "phaser";
 
+import { initialiseAudio, playHopSound } from "../audio/audio.js";
 import { CAMERA_ZOOM } from "../game/config.js";
 import { SWIPE_DELTAS, SwipeController, type SwipeDirection } from "../input/SwipeController.js";
 import type { GameClient } from "../networking/GameClient.js";
@@ -196,6 +197,8 @@ export class GameScene extends Phaser.Scene {
     if (state?.phase !== "playing" || !local || !local.alive || local.jumping) {
       return;
     }
+    initialiseAudio();
+    playHopSound();
     this.bufferedDirection = null;
     const sequence = ++this.sequence;
     this.pendingHop = { sequence, target: targetId };

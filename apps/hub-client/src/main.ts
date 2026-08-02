@@ -27,6 +27,10 @@ const GAME_META: Record<string, { title: string; blurb: string }> = {
     title: "Capital Pin",
     blurb: "Drop your pin where you think each capital city is. Closest wins.",
   },
+  flappy_race: {
+    title: "Flappy Race",
+    blurb: "Tap to flap through shared obstacle courses. Furthest bird wins each round.",
+  },
 };
 
 /**
@@ -51,11 +55,13 @@ function gameClientBase(gameId: string): string {
     falling_platforms: 5173,
     tap_race: 5174,
     capital_pin: 5175,
+    flappy_race: 5177,
   };
   const prodPaths: Record<string, string> = {
     falling_platforms: "/falling-platforms/",
     tap_race: "/tap-race/",
     capital_pin: "/capital-pin/",
+    flappy_race: "/flappy-race/",
   };
   if (window.location.port === "5176") {
     const port = devPorts[gameId];

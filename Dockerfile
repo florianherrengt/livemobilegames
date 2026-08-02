@@ -48,6 +48,7 @@ COPY --from=build /app/runtime /app/server
 COPY --from=build /app/apps/client/dist /app/client/dist
 COPY --from=build /app/apps/tap-race-client/dist /app/tap-race-client/dist
 COPY --from=build /app/apps/capital-pin-client/dist /app/capital-pin-client/dist
+COPY --from=build /app/apps/flappy-race-client/dist /app/flappy-race-client/dist
 COPY --from=build /app/apps/hub-client/dist /app/hub-client/dist
 
 USER node

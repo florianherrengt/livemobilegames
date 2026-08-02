@@ -7,7 +7,7 @@ typed commands and errors, server-controlled timers, match results and
 leaderboards. Adding a game means writing its rules and its client; the room
 and networking code is written once and reused by all of them.
 
-Three games ship in this repository:
+Four games ship in this repository:
 
 - **Falling Platforms** (Phaser client): swipe-to-hop survival on a shrinking
   grid of platforms. The original product, now running on the platform.
@@ -15,6 +15,8 @@ Three games ship in this repository:
   new game registers without touching platform internals.
 - **Capital Pin** (React + MapLibre client): drop a pin where you think each
   capital city is; the closest guess wins the round.
+- **Flappy Race** (Phaser client): tap to flap through shared obstacle
+  courses; the furthest bird wins each of five rounds.
 
 Opening the server in a browser shows a **game selector** (the hub). Each game
 runs in its own independent client app, but every client talks to the server
@@ -29,6 +31,7 @@ apps/hub-client         Landing page (root): lists the games and links into them
 apps/client             Falling Platforms Phaser client
 apps/tap-race-client    Tap Race vanilla TypeScript client
 apps/capital-pin-client Capital Pin React + MapLibre client
+apps/flappy-race-client Flappy Race Phaser client
 packages/platform-shared    Protocol types, Zod schemas, errors, results
 packages/platform-schema    Synchronized Colyseus Schema classes (isomorphic)
 packages/platform-server     GameDefinition contract, PlatformRoom, Presence room
@@ -41,6 +44,8 @@ packages/shared              Falling Platforms types, schemas, grid math
 packages/tap-race            Tap Race command/state schemas + server module
 packages/capital-pin         Capital Pin command/state schemas, server module,
                             capitals dataset + pure game logic
+packages/flappy-race        Flappy Race command/state schemas, server module,
+                            deterministic course generation, pure round rules
 ```
 
 The server owns everything that matters: room codes, player presence, host and
@@ -80,6 +85,7 @@ Builds the shared/platform packages, then starts:
 - Falling Platforms at `http://0.0.0.0:5173`
 - Tap Race at `http://localhost:5174/tap-race/`
 - Capital Pin at `http://localhost:5175/capital-pin/`
+- Flappy Race at `http://localhost:5177/flappy-race/`
 
 The clients derive the server URL from the page origin (dev: `ws://<host>:2567`;
 production: same origin). Override with `VITE_GAME_SERVER_URL`.
@@ -91,6 +97,7 @@ from one origin:
 - `/falling-platforms/` — Falling Platforms
 - `/tap-race/`  — Tap Race
 - `/capital-pin/` — Capital Pin
+- `/flappy-race/` — Flappy Race
 - `/games`      — JSON list of registered games (used by the hub)
 
 ### Playing locally
@@ -133,16 +140,17 @@ Notes:
 ## Commands
 
 ```bash
-pnpm dev              # server + hub + all three game clients
+pnpm dev              # server + hub + all four game clients
 pnpm dev:falling-platforms  # server + hub + Falling Platforms only
 pnpm dev:tap-race           # server + hub + Tap Race only
 pnpm dev:capital-pin        # server + hub + Capital Pin only
+pnpm dev:flappy-race        # server + hub + Flappy Race only
 pnpm build            # production build of every package and app
 pnpm start            # run the built server (serves the hub and all built clients)
 pnpm test             # all unit + integration tests
 pnpm test:unit        # platform package unit tests
 pnpm test:integration # server integration tests
-pnpm test:e2e         # Playwright end-to-end for both games
+pnpm test:e2e         # Playwright end-to-end for all four games
 pnpm typecheck        # strict TypeScript across the workspace
 pnpm lint             # Biome check
 pnpm format           # Biome format

@@ -81,6 +81,10 @@ const registry = vi.hoisted(() => {
 
     setLayoutProperty(): void {}
 
+    project(lngLat: LngLat): { x: number; y: number } {
+      return { x: lngLat[0], y: lngLat[1] };
+    }
+
     fitBounds(): void {
       this.fitBoundsCalls += 1;
     }
@@ -98,12 +102,27 @@ const registry = vi.hoisted(() => {
   };
 });
 
+const sounds = vi.hoisted(() => ({
+  initialise: vi.fn().mockResolvedValue(undefined),
+  pinDrop: vi.fn(),
+  pinMove: vi.fn(),
+  guessConfirmed: vi.fn(),
+  answerReveal: vi.fn(),
+  connectionWhoosh: vi.fn(),
+  roundWin: vi.fn(),
+  scoreResult: vi.fn(),
+}));
+
 vi.mock("maplibre-gl", () => ({
   default: {
     Map: registry.MockMap,
     Marker: registry.MockMarker,
     NavigationControl: registry.NavigationControl,
   },
+}));
+
+vi.mock("../src/audio/GeoPinSounds.js", () => ({
+  geoPinSounds: sounds,
 }));
 
 vi.mock("@falling-platforms/capital-pin", () => ({
@@ -197,6 +216,7 @@ describe("capital-pin map screens", () => {
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     registry.maps.length = 0;
+    vi.clearAllMocks();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -271,10 +291,45 @@ describe("capital-pin map screens", () => {
     });
   });
 
+  describe("round guess pin sounds", () => {
+    it("plays a drop on first placement and a move when the pin hops", async () => {
+      await render(<Round client={client} state={makeState()} selfSessionId="me" />);
+      await fireMapLoad();
+
+      await clickMap(2.35, 48.85);
+      expect(sounds.initialise).toHaveBeenCalled();
+      expect(sounds.pinDrop).toHaveBeenCalledTimes(1);
+      expect(sounds.pinMove).not.toHaveBeenCalled();
+
+      await clickMap(2.4, 48.9);
+      expect(sounds.pinMove).toHaveBeenCalledTimes(1);
+      expect(sounds.pinDrop).toHaveBeenCalledTimes(1);
+    });
+
+    it("plays the confirmation sound when the answer is locked", async () => {
+      await render(<Round client={client} state={makeState()} selfSessionId="me" />);
+      await fireMapLoad();
+      await clickMap(2.35, 48.85);
+
+      const lockButton = [...container.querySelectorAll("button")].find((button) =>
+        button.textContent?.includes("Lock answer"),
+      );
+      expect(lockButton).toBeDefined();
+      await act(async () => {
+        lockButton?.click();
+      });
+
+      expect(sounds.guessConfirmed).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("results screen", () => {
     it("renders the map with the capital and every revealed guess", async () => {
       await render(
-        <Results state={makeState({ phase: "round-results", lastResult: roundResult() })} />,
+        <Results
+          state={makeState({ phase: "round-results", lastResult: roundResult() })}
+          selfSessionId="me"
+        />,
       );
 
       // The results screen must mount its own map once the round map is gone.
@@ -288,6 +343,80 @@ describe("capital-pin map screens", () => {
         [2.35, 48.85],
         [0, 40],
       ]);
+    });
+
+    it("plays the reveal, score and win sounds once per round", async () => {
+      vi.useFakeTimers({
+        toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"],
+      });
+      try {
+        await render(
+          <Results
+            state={makeState({ phase: "round-results", lastResult: roundResult() })}
+            selfSessionId="me"
+          />,
+        );
+        await fireMapLoad();
+
+        expect(sounds.answerReveal).toHaveBeenCalledTimes(1);
+        expect(sounds.scoreResult).not.toHaveBeenCalled();
+        expect(sounds.roundWin).not.toHaveBeenCalled();
+
+        await act(async () => {
+          vi.advanceTimersByTime(400);
+        });
+        expect(sounds.scoreResult).toHaveBeenCalledTimes(1);
+        expect(sounds.scoreResult).toHaveBeenCalledWith(expect.closeTo(0.99984, 5));
+        expect(sounds.roundWin).not.toHaveBeenCalled();
+
+        await act(async () => {
+          vi.advanceTimersByTime(500);
+        });
+        expect(sounds.roundWin).toHaveBeenCalledTimes(1);
+
+        // A second render with a fresh state object must not replay the round.
+        await render(
+          <Results
+            state={makeState({ phase: "round-results", lastResult: roundResult() })}
+            selfSessionId="me"
+          />,
+        );
+        await act(async () => {
+          vi.advanceTimersByTime(1_000);
+        });
+        expect(sounds.answerReveal).toHaveBeenCalledTimes(1);
+        expect(sounds.scoreResult).toHaveBeenCalledTimes(1);
+        expect(sounds.roundWin).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("draws connection lines and plays the whoosh for the local guess", async () => {
+      vi.useFakeTimers({
+        toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"],
+      });
+      try {
+        await render(
+          <Results
+            state={makeState({ phase: "round-results", lastResult: roundResult() })}
+            selfSessionId="me"
+          />,
+        );
+        await fireMapLoad();
+
+        const svg = container.querySelector("svg.guess-lines");
+        expect(svg).not.toBeNull();
+        expect(svg?.querySelectorAll("line.guess-line")).toHaveLength(2);
+
+        await act(async () => {
+          vi.advanceTimersByTime(1_000);
+        });
+        expect(sounds.connectionWhoosh).toHaveBeenCalledTimes(1);
+        expect(sounds.connectionWhoosh).toHaveBeenCalledWith(expect.closeTo(0.00016, 5));
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

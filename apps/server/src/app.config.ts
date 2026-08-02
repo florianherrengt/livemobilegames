@@ -6,6 +6,12 @@ import type {
   CapitalPinState,
 } from "@falling-platforms/capital-pin";
 import { createCapitalPinGame } from "@falling-platforms/capital-pin/server";
+import type {
+  FlappyRaceCommand,
+  FlappyRacePlayerState,
+  FlappyRaceState,
+} from "@falling-platforms/flappy-race";
+import { createFlappyRaceGame } from "@falling-platforms/flappy-race/server";
 import {
   computeRoomCodeClaimTtl,
   createPlatformLogger,
@@ -31,6 +37,7 @@ const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".
 const clientDist = path.resolve(packageDir, "../client/dist");
 const tapRaceClientDist = path.resolve(packageDir, "../tap-race-client/dist");
 const capitalPinClientDist = path.resolve(packageDir, "../capital-pin-client/dist");
+const flappyRaceClientDist = path.resolve(packageDir, "../flappy-race-client/dist");
 const hubClientDist = path.resolve(packageDir, "../hub-client/dist");
 
 const platformRoomOptions = {
@@ -67,6 +74,14 @@ const gameRegistrations = [
     id: "capital_pin",
     create: () =>
       createCapitalPinGame({
+        e2eMode: serverConfig.e2eTestMode,
+        reconnectGraceMs: serverConfig.reconnectGraceMs,
+      }),
+  },
+  {
+    id: "flappy_race",
+    create: () =>
+      createFlappyRaceGame({
         e2eMode: serverConfig.e2eTestMode,
         reconnectGraceMs: serverConfig.reconnectGraceMs,
       }),
@@ -111,6 +126,20 @@ class CapitalPinRoom extends PlatformRoom<
   }
 }
 
+class FlappyRaceRoom extends PlatformRoom<
+  FlappyRaceState,
+  FlappyRacePlayerState,
+  FlappyRaceCommand
+> {
+  constructor() {
+    const registration = gameRegistrations[3];
+    if (registration?.id !== "flappy_race") {
+      throw new Error("Flappy Race game is not registered");
+    }
+    super(registration.create(), platformRoomOptions);
+  }
+}
+
 const allowedOrigins = serverConfig.clientOrigins;
 
 function originAllowed(origin: string | undefined): boolean {
@@ -125,6 +154,7 @@ export const appConfig = defineServer({
     falling_platforms: defineRoom(FallingPlatformsRoom),
     tap_race: defineRoom(TapRaceRoom),
     capital_pin: defineRoom(CapitalPinRoom),
+    flappy_race: defineRoom(FlappyRaceRoom),
   },
   transport: new WebSocketTransport({
     maxPayload: serverConfig.maxSocketPayloadBytes,
@@ -150,6 +180,7 @@ export const appConfig = defineServer({
 
     app.use("/tap-race", express.static(tapRaceClientDist, { index: "index.html" }));
     app.use("/capital-pin", express.static(capitalPinClientDist, { index: "index.html" }));
+    app.use("/flappy-race", express.static(flappyRaceClientDist, { index: "index.html" }));
     app.use("/falling-platforms", express.static(clientDist, { index: "index.html" }));
     // The hub is the root landing page; it links into each independent client.
     app.use(express.static(hubClientDist, { index: "index.html" }));
