@@ -1,0 +1,49 @@
+{
+  "name": "@phone-party/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "storybook": "storybook dev -p 6006",
+    "storybook:build": "storybook build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@colyseus/sdk": "0.17.43",
+    "@emotion/react": "11.14.0",
+    "@emotion/styled": "11.14.1",
+    "@hookform/resolvers": "5.7.1",
+    "@mui/material": "9.3.0",
+    "@phone-party/protocol": "workspace:*",
+    "@tanstack/react-query": "5.101.4",
+    "maplibre-gl": "^6.1.0",
+    "qrcode": "1.5.4",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "react-hook-form": "7.84.0",
+    "react-router-dom": "6.30.4",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@storybook/addon-a11y": "10.5.6",
+    "@storybook/addon-docs": "10.5.6",
+    "@storybook/react-vite": "10.5.6",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@types/qrcode": "1.5.5",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.5",
+    "jsdom": "27.4.0",
+    "storybook": "10.5.6",
+    "typescript": "5.9.3",
+    "vite": "8.2.0",
+    "vitest": "4.1.10"
+  }
+}

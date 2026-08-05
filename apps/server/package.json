@@ -1,0 +1,35 @@
+{
+  "name": "@phone-party/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/room-code.test.ts tests/game-registry.test.ts tests/room-directory.test.ts tests/anonymous-session.test.ts",
+    "test:integration": "vitest run tests/app.test.ts tests/rooms.test.ts"
+  },
+  "dependencies": {
+    "@colyseus/core": "0.17.46",
+    "@colyseus/schema": "4.0.30",
+    "@hono/node-server": "2.0.1",
+    "@hono/zod-validator": "0.9.0",
+    "@phone-party/protocol": "workspace:*",
+    "colyseus": "0.17.10",
+    "hono": "4.12.18",
+    "pino": "10.3.1",
+    "rate-limiter-flexible": "11.2.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@colyseus/testing": "0.17.11",
+    "@types/express": "5.0.6",
+    "@types/node": "24.13.3",
+    "tsx": "4.23.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

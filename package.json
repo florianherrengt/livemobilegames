@@ -1,0 +1,33 @@
+{
+  "name": "phone-party-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Phone-only multiplayer party-game platform foundation.",
+  "packageManager": "pnpm@10.33.4",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @phone-party/protocol build && concurrently -k -n server,web -c blue,green \"pnpm --filter @phone-party/server dev\" \"pnpm --filter @phone-party/web dev\"",
+    "build": "pnpm -r build",
+    "start": "pnpm --filter @phone-party/server start",
+    "storybook": "pnpm --filter @phone-party/web storybook",
+    "storybook:build": "pnpm --filter @phone-party/web storybook:build",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome check .",
+    "typecheck": "pnpm --filter @phone-party/protocol build && pnpm -r typecheck",
+    "test": "pnpm --filter @phone-party/protocol build && pnpm -r test",
+    "test:unit": "pnpm --filter @phone-party/protocol build && pnpm --filter @phone-party/protocol test && pnpm --filter @phone-party/server test:unit && pnpm --filter @phone-party/web test:unit",
+    "test:integration": "pnpm --filter @phone-party/protocol build && pnpm --filter @phone-party/server test:integration",
+    "test:e2e": "pnpm build && pnpm exec playwright test -c apps/web/playwright.config.ts",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.6",
+    "@playwright/test": "1.62.1",
+    "concurrently": "10.0.4",
+    "typescript": "5.9.3"
+  }
+}
