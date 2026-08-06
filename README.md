@@ -75,7 +75,9 @@ cp .env.example .env
 
 `COOKIE_SECRET` is required and must be at least 32 characters. Never commit a real secret.
 
-The server loads `.env` from the repository root automatically; Vite reads the same root `.env` for `VITE_*` values.
+The server, Vite, the Storybook dev launcher, and Playwright all read the same
+repository-root `.env`; Vite also reads `VITE_*` values from it. A value already
+exported in the shell always wins.
 
 ## Development
 
@@ -90,7 +92,33 @@ This starts:
 
 Vite proxies `/api`, `/matchmake`, and `/colyseus` to the Node server, so no CORS configuration is needed.
 
-If either port is already in use, set `PORT` (server) and `WEB_PORT` (Vite) in `.env` or in the shell. The Vite proxy automatically follows `PORT`.
+Every listener reads its port from `.env` or the shell:
+
+| Variable | Default | Listener |
+| --- | --- | --- |
+| `PORT` | `3000` | Shared HTTP API and Colyseus server |
+| `WEB_PORT` | `5173` | Vite dev server |
+| `STORYBOOK_PORT` | `6006` | Storybook dev server |
+| `PREVIEW_PORT` | `4173` | `vite preview` |
+| `E2E_PORT` | `3210` | Playwright production server |
+
+The Vite dev proxy automatically follows `PORT`. Vite and Storybook fail
+instead of silently moving to another port when the configured one is taken,
+so a misconfigured worktree cannot quietly take over another worktree's port.
+
+## Multiple worktrees
+
+Worktrees live in `.worktrees/` and each one gets its own non-conflicting port
+set in a gitignored `.env`. Create and start one with:
+
+```bash
+pnpm worktree:create <name>
+cd .worktrees/<name>
+pnpm dev
+```
+
+See [docs/worktrees.md](docs/worktrees.md) for the full workflow: options,
+port allocation, Storybook/preview/E2E, and troubleshooting.
 
 ## Commands
 
@@ -104,7 +132,7 @@ pnpm test:unit       # unit tests only
 pnpm test:integration # server integration tests
 pnpm test:e2e        # build, then run Playwright against the production server
 pnpm build           # build protocol, server, and web application
-pnpm storybook       # isolated MUI component states on port 6006
+pnpm storybook       # isolated MUI component states on STORYBOOK_PORT (6006)
 pnpm storybook:build # verify the static Storybook build
 pnpm check           # formatting + lint + types + tests + build
 ```
@@ -171,6 +199,8 @@ Unknown fields in API request bodies are stripped by Zod's default object behavi
   reservation, lobby, reconnection, host-transfer, error, and cleanup behavior.
 - [Adding a game](docs/adding-a-game.md) defines what the first production game must own and
   how it joins the trusted platform registry.
+- [Multiple worktrees](docs/worktrees.md) explains how to create and run
+  worktrees with per-worktree ports.
 - [Server runtime](apps/server/docs/runtime.md), [server standards](apps/server/docs/standards.md),
   [future SQLite persistence](apps/server/docs/persistence.md),
   [web standards](apps/web/docs/standards.md), and

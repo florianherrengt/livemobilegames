@@ -68,8 +68,9 @@ and keeps answer-revealing layers hidden.
 - `theme.ts` owns the one application MUI theme.
 - `config.ts` owns parsed `VITE_*` environment values; runtime code never reads
   `import.meta.env` directly.
-- Vite and Playwright configs may read `process.env` for build/test ports only;
-  this is a narrow tooling exception, not a pattern for feature modules.
+- Vite and Playwright configs and the Storybook dev launcher may read
+  `process.env` for build/dev/test ports only; this is a narrow tooling
+  exception, not a pattern for feature modules.
 - `app-providers.tsx` owns the shared Theme, CssBaseline, Query, and room
   connection providers used by the application and Storybook.
 - `tests/` contains component behavior tests; `e2e/` contains production-stack

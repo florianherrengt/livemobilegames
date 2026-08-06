@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
-    "preview": "vite preview --host 0.0.0.0",
-    "storybook": "storybook dev -p 6006",
+    "preview": "vite preview",
+    "storybook": "node scripts/storybook-dev.mjs",
     "storybook:build": "storybook build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",

@@ -118,6 +118,7 @@ when the architecture changes.
 - `docs/architecture.md`: process topology, authority, state ownership,
   dependency direction, and scaling boundaries.
 - `docs/adding-a-game.md`: requirements and sequence for adding a real game.
+- `docs/worktrees.md`: per-worktree ports, creation options, and lifecycle.
 - `apps/server/docs/runtime.md`: build/runtime model, environment, shared HTTP
   server, routing, static assets, and shutdown.
 - `apps/server/docs/standards.md`: Hono, Zod, identity, Colyseus, state,

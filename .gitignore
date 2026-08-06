@@ -3,6 +3,7 @@ dist/
 coverage/
 .env
 .env.local
+.worktrees/
 playwright-report/
 storybook-static/
 test-results/

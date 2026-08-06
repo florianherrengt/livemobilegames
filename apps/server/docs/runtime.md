@@ -41,6 +41,10 @@ Add server environment values to the schema, `loadConfig` mapping,
 `.env.example`, Docker configuration when relevant, tests, and documentation in
 one change. Do not read `process.env` throughout feature modules.
 
+Each git worktree loads its own root `.env`. `PUBLIC_ORIGIN` must match that
+worktree's `WEB_PORT`; `pnpm worktree:create` sets both, and the Vite dev proxy
+follows the same `PORT`.
+
 `src/config.ts` is the only runtime access layer for environment values. The
 only exceptions are build and test tooling (`vite.config.ts` and
 `playwright.config.ts`), which read ports before the application config module

@@ -1,4 +1,15 @@
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
+
+const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
+
+// Playwright is plain Node tooling and does not load the repository-root .env
+// by itself. Load it so a worktree's E2E_PORT is honored; an explicitly
+// exported shell value still wins because loadEnvFile does not override it.
+if (existsSync(`${repoRoot}/.env`)) {
+  process.loadEnvFile(`${repoRoot}/.env`);
+}
 
 const PORT = Number(process.env.E2E_PORT || 3210);
 
