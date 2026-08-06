@@ -33,8 +33,8 @@ with an explicit object, so they do not depend on a developer's `.env`.
 | `PUBLIC_ORIGIN` | `http://localhost:5173` | Validated public browser origin; reserved but not otherwise consumed yet |
 | `COLYSEUS_PATH` | `/colyseus` | WebSocket path prefix; must begin with `/` |
 | `LOBBY_MAX_CLIENTS` | `8` | Lobby capacity, from 1 through 32 |
-| `E2E_TEST_MODE` | `false` | Shortens Capital Pin round/results timings for test suites |
-| `CAPITAL_PIN_TRANSITION_TIMEOUT_MS` | `15000` | Deadline for all roster players to arrive in a Capital Pin game room |
+| `E2E_TEST_MODE` | `false` | Shortens game round/results timings for test suites |
+| `CAPITAL_PIN_TRANSITION_TIMEOUT_MS` | `15000` | Deadline for all roster players to arrive in a registered game room |
 | `LOG_LEVEL` | `info` | Pino log level |
 
 Add server environment values to the schema, `loadConfig` mapping,

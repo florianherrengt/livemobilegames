@@ -2,6 +2,7 @@ import type { Client, Room } from "@colyseus/sdk";
 import {
   CapitalPinState,
   FallingPlatformsState,
+  FlappyRaceState,
   type ISeatReservation,
   LobbyRoomState,
   ROOM_MESSAGE_TYPES,
@@ -20,7 +21,7 @@ import {
 
 import { createColyseusClient } from "./multiplayer.js";
 
-export type RoomState = LobbyRoomState | CapitalPinState | FallingPlatformsState;
+export type RoomState = LobbyRoomState | CapitalPinState | FallingPlatformsState | FlappyRaceState;
 type RoomStateSchema = new () => RoomState;
 
 /**
@@ -30,6 +31,7 @@ type RoomStateSchema = new () => RoomState;
 const gameStateSchemas: Record<string, RoomStateSchema> = {
   "capital-pin": CapitalPinState,
   "falling-platforms": FallingPlatformsState,
+  "flappy-race": FlappyRaceState,
 };
 
 export type RoomConnection = {

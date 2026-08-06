@@ -2,6 +2,7 @@ import { Box, Button, Container, Paper, Stack, Typography } from "@mui/material"
 import {
   type CapitalPinState,
   type FallingPlatformsState,
+  type FlappyRaceState,
   normalizeRoomCode,
   roomCodeSchema,
 } from "@phone-party/protocol";
@@ -25,6 +26,12 @@ const CapitalPinGameView = lazy(() =>
 const FallingPlatformsGameView = lazy(() =>
   import("../games/falling-platforms/game-view.js").then((module) => ({
     default: module.FallingPlatformsGameView,
+  })),
+);
+
+const FlappyRaceGameView = lazy(() =>
+  import("../games/flappy-race/game-view.js").then((module) => ({
+    default: module.FlappyRaceGameView,
   })),
 );
 
@@ -121,6 +128,26 @@ export function RoomPage() {
     );
   }
 
+  if (isFlappyRaceState(roomState)) {
+    return (
+      <Box sx={{ position: "relative", height: "100dvh" }}>
+        <Suspense
+          fallback={
+            <Paper sx={{ p: 2.25, m: 2 }}>
+              <Typography>Loading game…</Typography>
+            </Paper>
+          }
+        >
+          <FlappyRaceGameView
+            connection={connection}
+            state={roomState}
+            selfSessionId={selfSessionId}
+          />
+        </Suspense>
+      </Box>
+    );
+  }
+
   return (
     <Container component="main" maxWidth="sm" sx={{ py: { xs: 2.5, sm: 4 } }}>
       <Stack spacing={2}>
@@ -165,4 +192,8 @@ function isCapitalPinState(state: RoomState): state is CapitalPinState {
 
 function isFallingPlatformsState(state: RoomState): state is FallingPlatformsState {
   return "phase" in state && "platforms" in state;
+}
+
+function isFlappyRaceState(state: RoomState): state is FlappyRaceState {
+  return "phase" in state && "obstacleOpenings" in state;
 }
