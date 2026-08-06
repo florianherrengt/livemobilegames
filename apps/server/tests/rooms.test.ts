@@ -167,6 +167,26 @@ describe("room integration", () => {
     expect(new Set(players.map((player) => player.name))).toEqual(new Set(["Alice", "Bob"]));
   });
 
+  it("rejects a second live membership for the same trusted identity", async () => {
+    const alice = await createRoom(test, "Alice");
+    const aliceBody = expectRoomSuccess(alice.body);
+    const aliceRoom = await test.testServer.sdk.consumeSeatReservation(
+      aliceBody.reservation,
+      LobbyRoomState,
+    );
+    await waitFor(() => aliceRoom.state.players.size === 1);
+
+    const duplicate = await joinRoom(test, aliceBody.room.code, "Alice again", alice.cookie);
+    expect(duplicate.response.status).toBe(200);
+    await expect(
+      test.testServer.sdk.consumeSeatReservation(
+        expectRoomSuccess(duplicate.body).reservation,
+        LobbyRoomState,
+      ),
+    ).rejects.toThrow();
+    expect(aliceRoom.state.players.size).toBe(1);
+  });
+
   it("normalises lowercase room codes", async () => {
     const created = await createRoom(test, "Alice");
     const createdBody = expectRoomSuccess(created.body);
@@ -276,5 +296,38 @@ describe("room integration", () => {
   it("uses the platform lobby room type for matchmaking", async () => {
     const created = await createRoom(test, "Alice");
     expect(expectRoomSuccess(created.body).reservation.name).toBe(LOBBY_ROOM_TYPE);
+  });
+
+  it("rejects direct public matchmaking creation of a platform lobby", async () => {
+    await expect(
+      test.testServer.sdk.create(
+        LOBBY_ROOM_TYPE,
+        {
+          roomCode: "ABCDEF",
+          creatorPlayerId: "11111111-1111-4111-8111-111111111111",
+          playerId: "11111111-1111-4111-8111-111111111111",
+          playerName: "Mallory",
+          maxClients: 2,
+        },
+        LobbyRoomState,
+      ),
+    ).rejects.toThrow();
+  });
+
+  it("rejects direct public matchmaking reservations for a platform lobby", async () => {
+    const created = await createRoom(test, "Alice");
+    const createdBody = expectRoomSuccess(created.body);
+    await test.testServer.sdk.consumeSeatReservation(createdBody.reservation, LobbyRoomState);
+
+    await expect(
+      test.testServer.sdk.joinById(
+        createdBody.reservation.roomId,
+        {
+          playerId: "22222222-2222-4222-8222-222222222222",
+          playerName: "Mallory",
+        },
+        LobbyRoomState,
+      ),
+    ).rejects.toThrow();
   });
 });

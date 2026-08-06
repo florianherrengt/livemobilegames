@@ -52,6 +52,14 @@ export function createLobbyRoomClass(
     override maxClients = 8;
     private transitioning = false;
 
+    static override onAuth(token: string): Promise<unknown> {
+      // Lobby matchmaking is an internal boundary: browsers receive completed
+      // reservations from the Hono API and never create or reserve rooms
+      // directly. Requiring the process-local token prevents public Colyseus
+      // matchmaking from forging trusted room and seat options.
+      return Promise.resolve(token === deps.roomCreationToken);
+    }
+
     override onCreate(options: unknown): void {
       const parsed = roomOptionsSchema.safeParse(options);
       if (!parsed.success) {
@@ -172,6 +180,11 @@ export function createLobbyRoomClass(
       }
       if (this.transitioning) {
         throw new ServerError(ErrorCode.APPLICATION_ERROR, "Room not joinable");
+      }
+      for (const player of this.state.players.values()) {
+        if (player.playerId === parsed.data.playerId) {
+          throw new ServerError(ErrorCode.APPLICATION_ERROR, "Player already joined");
+        }
       }
       const isHost = this.state.players.size === 0;
       if (isHost) {

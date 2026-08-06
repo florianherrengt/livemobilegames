@@ -30,6 +30,12 @@ The HTTP layer passes that trusted ID into Colyseus room or seat options. Client
 JSON cannot choose it. Once connected, a room action derives the actor from the
 Colyseus `Client.sessionId` and its associated state, never from the message.
 
+Lobby creation and seat reservation require a process-local capability through
+Colyseus matchmaking authorization. The capability is injected only by
+`RoomService` and is never included in the HTTP reservation response. Public
+matchmaking calls therefore cannot create a platform lobby or reserve forged
+seat options directly.
+
 ## Room codes
 
 Codes contain six characters from `23456789ABCDEFGHJKLMNPQRSTUVWXYZ`, excluding
@@ -124,6 +130,11 @@ code to be reused later.
 
 Each `LobbyPlayerState` contains the server-supplied player UUID, display name,
 and host flag. The first connected client becomes host.
+
+A trusted player UUID may have only one live lobby membership. A duplicate
+connection is rejected before state changes, preventing one browser identity
+from inflating the roster or producing an impossible game transition. Once the
+old membership leaves, the same identity may join again normally.
 
 The lobby accepts these messages, sent through the Colyseus SDK:
 

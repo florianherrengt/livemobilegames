@@ -10,6 +10,8 @@ import { RoomService } from "../src/rooms/room-service.js";
 import { asRecord } from "./helpers/json.js";
 import { createTestConfig } from "./helpers/test-platform.js";
 
+const ROOM_CREATION_TOKEN = "test-room-creation-token";
+
 function createAppWithStub() {
   const registry = createGameRegistry([]);
   const roomService = new RoomService({
@@ -17,6 +19,7 @@ function createAppWithStub() {
     isShuttingDown: () => false,
     lobbyMaxClients: 2,
     logger: createLogger("silent"),
+    roomCreationToken: ROOM_CREATION_TOKEN,
   });
   const reservation = {
     name: "__platform_lobby",
@@ -153,6 +156,7 @@ describe("Hono application", () => {
       isShuttingDown: () => false,
       lobbyMaxClients: 2,
       logger: createLogger("silent"),
+      roomCreationToken: ROOM_CREATION_TOKEN,
     });
     roomService.createRoom = async () => {
       throw new Error("secret internal detail");

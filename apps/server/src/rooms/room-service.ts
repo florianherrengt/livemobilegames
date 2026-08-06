@@ -19,6 +19,7 @@ export type RoomServiceDeps = {
   readonly isShuttingDown: () => boolean;
   readonly lobbyMaxClients: number;
   readonly logger: Logger;
+  readonly roomCreationToken: string;
 };
 
 export type CreateRoomInput = {
@@ -51,7 +52,11 @@ export class RoomService {
         playerName: input.playerName,
         maxClients: this.deps.lobbyMaxClients,
       };
-      const reservation = await matchMaker.create(LOBBY_ROOM_TYPE, options);
+      const reservation = await matchMaker.create(
+        LOBBY_ROOM_TYPE,
+        options,
+        this.matchmakingAuthContext(),
+      );
       roomId = reservation.roomId;
 
       this.deps.directory.setEntry(code, { roomId: reservation.roomId, gameId: null });
@@ -93,7 +98,11 @@ export class RoomService {
         playerId: input.playerId,
         playerName: input.playerName,
       };
-      const reservation = await matchMaker.joinById(entry.roomId, options);
+      const reservation = await matchMaker.joinById(
+        entry.roomId,
+        options,
+        this.matchmakingAuthContext(),
+      );
       return {
         room: { code, game: null },
         reservation: reservation as JoinRoomResponse["reservation"],
@@ -137,6 +146,14 @@ export class RoomService {
       return;
     }
     attachDirectoryCleanup(room, this.deps.directory, code);
+  }
+
+  private matchmakingAuthContext() {
+    return {
+      token: this.deps.roomCreationToken,
+      headers: new Headers(),
+      ip: "internal",
+    };
   }
 
   private mapCreateError(error: unknown): AppError {

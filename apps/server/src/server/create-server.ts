@@ -51,6 +51,7 @@ export async function createPlatformServer(deps: PlatformServerDeps): Promise<Pl
     isShuttingDown: () => shuttingDown,
     lobbyMaxClients: deps.config.lobbyMaxClients,
     logger: deps.logger,
+    roomCreationToken,
   });
 
   const app = createApp({

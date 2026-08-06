@@ -125,6 +125,25 @@ docker run -p 3000:3000 \
 
 The container health check calls `/api/health`.
 
+### Coolify
+
+Use the repository `Dockerfile` build pack with `/` as the base directory. Route
+the public domain to container port `3000` and configure `/api/health` as the
+health-check path. Coolify terminates HTTPS; the application serves HTTP and
+WebSockets on the same internal port, so no second service or socket port is
+needed.
+
+Set `COOKIE_SECRET` to a random value of at least 32 characters. The image
+already defaults `NODE_ENV=production`, `HOST=0.0.0.0`, `PORT=3000`,
+`COLYSEUS_PATH=/colyseus`, and `LOG_LEVEL=info`. If `PORT` is overridden, the
+Coolify target port must match it; the container health check follows the
+runtime `PORT` value.
+
+Run exactly one replica and do not attach a persistent volume. Active rooms,
+room codes, and reconnection tokens are process-local and intentionally end on
+restart or redeployment. Horizontal scaling requires a separate design for
+matchmaking ownership and sticky WebSockets.
+
 ## Repository structure
 
 ```text

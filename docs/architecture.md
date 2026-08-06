@@ -119,6 +119,10 @@ client messages, and reconnection tokens.
 The WebSocket transport uses a 16 KiB maximum payload. Room-creation options,
 seat options, and message bodies enter rooms as `unknown` and are parsed before
 use. The connected `Client` establishes the actor; message data never does.
+Lobby creation and seat reservation also require a process-local capability at
+the matchmaking authorization boundary. Browsers only consume completed
+reservations returned by the Hono API, so public Colyseus matchmaking cannot
+forge trusted lobby or player options.
 
 ### Routing exclusions
 
@@ -178,6 +182,11 @@ Each visitor receives a server-generated UUID in a signed HTTP-only cookie.
 Tampered, malformed, or missing cookies are replaced. HTTP routes derive the
 acting player from typed Hono context; room actions derive it from the connected
 Colyseus client and state.
+
+One trusted player ID may own at most one live membership in a platform lobby.
+The room rejects a duplicate connection before changing synchronized state;
+after the old connection leaves, the same browser may join again through the
+room URL.
 
 The platform never accepts a client-supplied identity, room ID, room type,
 score, collision, death, winner, timestamp, or seed as authoritative. Zod's
