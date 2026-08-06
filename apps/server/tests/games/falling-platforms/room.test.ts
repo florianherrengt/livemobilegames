@@ -196,7 +196,7 @@ describe("Falling Platforms room integration", () => {
     const bobSession = bobGame.sessionId;
     expect(aliceGame.state.players.get(aliceSession)?.currentPlatformId).toBe("3:3");
     expect(aliceGame.state.players.get(bobSession)?.currentPlatformId).toBe("3:4");
-    expect(aliceGame.state.arenaSide).toBe(7);
+    expect(aliceGame.state.arenaSide).toBe(5);
     expect(aliceGame.state.aliveCount).toBe(2);
 
     // A third player cannot join a room whose game has started.
@@ -265,7 +265,7 @@ describe("Falling Platforms room integration", () => {
     await waitFor(() => aliceGame.state.phase === "playing");
     expect(aliceGame.state.roundNumber).toBe(1);
     expect(aliceGame.state.aliveCount).toBe(2);
-    expect(aliceGame.state.platforms.size).toBe(49);
+    expect(aliceGame.state.platforms.size).toBe(25);
     expect(aliceGame.state.players.get(aliceSession)?.currentPlatformId).toBe("3:3");
     expect(aliceGame.state.players.get(bobSession)?.currentPlatformId).toBe("3:4");
   });

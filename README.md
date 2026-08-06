@@ -17,6 +17,11 @@ the selected game's room; the same room code continues to address the game.
 Round 1 begins automatically when everyone has arrived — one Start click is
 enough.
 
+Every game opens with a short how-to during the initial countdown (or the
+opening seconds of a game without one) that disappears automatically. Audio and
+haptics add subtle feedback for actions and outcomes without being the only
+signal.
+
 Inside a room the host can share an invite link (or QR code), copy the room code, and every player can see the live player list with host and “you” markers. Opening a room link on another phone lets that player join directly.
 
 Capital Pin plays 10 rounds. Each round names a capital city and every phone
@@ -24,10 +29,12 @@ drops a pin on a world map; the closest guess wins the round. The server keeps
 the answer secret until the round ends, owns all timing and scoring, and
 finishes with a leaderboard and a host-only play-again option.
 
-Falling Platforms drops every player onto a shared grid of platforms. Swipe (or
-use the on-screen arrows) to hop to an adjacent tile while the server warns and
-removes platforms on a seeded difficulty schedule. One survivor wins; the room
-returns to its lobby and the host can play again with a fresh seed.
+Falling Platforms drops every player onto a shared grid of platforms. A zoomed
+camera follows your player (or a survivor you tap while spectating), so the
+platforms stay large enough to read on a phone. Swipe to hop to an adjacent
+tile while the server warns and removes platforms on a seeded difficulty
+schedule. One survivor wins; the room returns to its lobby and the host can
+play again with a fresh seed.
 
 Flappy Race gives every player a bird on the same server-generated course.
 Tap to flap, dodge shared obstacles, and let the furthest bird win each of five
@@ -57,7 +64,9 @@ Single Node.js process
   └── In-memory authoritative game simulations
 ```
 
-Hono and Colyseus share one Node.js HTTP server and one public port. Colyseus uses its local presence and local driver.
+Hono and Colyseus share one Node.js HTTP server and one application port. In
+production, Cloudflare's host-port route and Coolify's HTTPS proxy both forward
+to container port `3000`. Colyseus uses its local presence and local driver.
 
 There is deliberately no database in this version. SQLite is the selected store for the first real durable-data requirement, but no driver, schema, migration, or empty database is added before there is a durable fact to model. Live rooms and room codes will remain in memory. A server restart currently ends active rooms; that is an accepted trade-off for this stage.
 
@@ -162,10 +171,17 @@ The container health check calls `/api/health`.
 ### Coolify
 
 Use the repository `Dockerfile` build pack with `/` as the base directory. Route
-the public domain to container port `3000` and configure `/api/health` as the
-health-check path. Coolify terminates HTTPS; the application serves HTTP and
-WebSockets on the same internal port, so no second service or socket port is
-needed.
+traffic to container port `3000` and configure `/api/health` as the health-check
+path. The application serves HTTP and WebSockets on the same internal port, so
+no second service or socket port is needed.
+
+Coolify's reverse proxy provides direct HTTPS origin access. On the current
+helium deployment, the public Cloudflare route instead reaches the application
+through host port `4478`. Keep the Coolify host-port mapping set to `4478:3000`;
+the container side must remain `3000`. This mapping is an additional route to
+the same Node process, not a second application or WebSocket service. The
+detailed configuration and recovery procedure live in
+[`coolify/README.md`](coolify/README.md).
 
 Set `COOKIE_SECRET` to a random value of at least 32 characters. The image
 already defaults `NODE_ENV=production`, `HOST=0.0.0.0`, `PORT=3000`,
@@ -197,7 +213,7 @@ Unknown fields in API request bodies are stripped by Zod's default object behavi
   authority, state ownership, and the boundaries for future persistence or scaling.
 - [Room lifecycle](apps/server/src/rooms/docs/room-lifecycle.md) defines the current HTTP,
   reservation, lobby, reconnection, host-transfer, error, and cleanup behavior.
-- [Adding a game](docs/adding-a-game.md) defines what the first production game must own and
+- [Adding a game](docs/adding-a-game.md) defines what every additional production game must own and
   how it joins the trusted platform registry.
 - [Multiple worktrees](docs/worktrees.md) explains how to create and run
   worktrees with per-worktree ports.
@@ -205,6 +221,8 @@ Unknown fields in API request bodies are stripped by Zod's default object behavi
   [future SQLite persistence](apps/server/docs/persistence.md),
   [web standards](apps/web/docs/standards.md), and
   [protocol standards](packages/protocol/docs/standards.md) contain scoped engineering rules.
+- [Coolify operations](coolify/README.md) records the production identifiers,
+  required configuration, deployment and verification commands, and incident recovery procedure.
 - [`AGENTS.md`](AGENTS.md) is the concise repository map and documentation index.
 
 ## Current limitations

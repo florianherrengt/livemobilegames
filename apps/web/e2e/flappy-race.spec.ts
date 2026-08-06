@@ -66,7 +66,11 @@ async function captureRoundResult(
 
 async function tapFlapRepeatedly(page: Page, count: number, intervalMs: number): Promise<void> {
   for (let index = 0; index < count; index++) {
-    await page.getByTestId("flappy-flap-button").click();
+    const button = page.getByTestId("flappy-flap-button");
+    if (await button.isDisabled()) {
+      return;
+    }
+    await button.click({ force: true });
     await page.waitForTimeout(intervalMs);
   }
 }
@@ -91,6 +95,8 @@ test("two phones play a deterministic five-round Flappy Race match", async ({ br
   await waitForPhase(bob, "countdown");
   await waitForPhase(alice, "running", 15_000);
   await waitForPhase(bob, "running", 15_000);
+  await expect(alice.getByText("How to play Flappy Race")).not.toBeVisible();
+  await expect(bob.getByText("How to play Flappy Race")).not.toBeVisible();
 
   const aliceOpenings = JSON.parse(
     (await arena(alice).getAttribute("data-openings")) ?? "[]",
@@ -105,17 +111,22 @@ test("two phones play a deterministic five-round Flappy Race match", async ({ br
   const roundOne = await captureRoundResult(alice, 1);
   expect(roundOne.winners).toHaveLength(2);
 
-  // Round 2: Alice flaps up and crashes at obstacle 1; Bob passes it and wins.
+  // Round 2: Alice flaps up and crashes early; Bob passes it and wins. The
+  // capture starts before the flap loop because the E2E round-result phase is
+  // short and can start and end while the clicks are still running.
   await waitForRoundNumber(alice, 2);
+  const roundTwoPromise = captureRoundResult(alice, 2);
   await tapFlapRepeatedly(alice, 16, 90);
-  const roundTwo = await captureRoundResult(alice, 2);
+  const roundTwo = await roundTwoPromise;
   expect(roundTwo.winners).toHaveLength(1);
 
   // Rounds 3-4 draw; round 5 goes straight to the final scoreboard.
+  const roundThreePromise = captureRoundResult(alice, 3);
   await waitForRoundNumber(alice, 3);
-  await captureRoundResult(alice, 3);
+  await roundThreePromise;
+  const roundFourPromise = captureRoundResult(alice, 4);
   await waitForRoundNumber(alice, 4);
-  await captureRoundResult(alice, 4);
+  await roundFourPromise;
 
   await expect(alice.getByTestId("flappy-race-leaderboard")).toBeVisible({ timeout: 20_000 });
   await expect(bob.getByTestId("flappy-race-leaderboard")).toBeVisible({ timeout: 20_000 });

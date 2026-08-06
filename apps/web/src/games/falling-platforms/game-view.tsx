@@ -6,6 +6,7 @@ import {
 } from "@phone-party/protocol";
 import { useEffect, useRef, useState } from "react";
 
+import { HowToPlay } from "../../components/how-to-play.js";
 import { InvitePanel } from "../../components/invite-panel.js";
 import type { RoomConnection } from "../../game-connection.js";
 import { ArenaView } from "./arena-view.js";
@@ -167,6 +168,7 @@ function CountdownView({ state }: { state: FallingPlatformsState }) {
     <Box
       component="main"
       sx={{
+        position: "relative",
         height: "100dvh",
         width: "100%",
         display: "flex",
@@ -185,6 +187,14 @@ function CountdownView({ state }: { state: FallingPlatformsState }) {
       <Typography color="text.secondary" align="center" sx={{ mt: 2 }} aria-live="polite">
         {state.players.size} players connected
       </Typography>
+      <HowToPlay
+        title="How to play Falling Platforms"
+        points={[
+          "Swipe in any direction to hop to an adjacent platform.",
+          "Orange platforms are about to collapse — don't be standing on them.",
+          "Last player standing wins.",
+        ]}
+      />
     </Box>
   );
 }

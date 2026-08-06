@@ -20,7 +20,7 @@ Phone browsers
   └── WebSocket /colyseus connections
                 │
                 v
-One Node.js process / one public port
+One Node.js process / one application port (`3000`)
   ├── Hono middleware, API, static assets, SPA fallback
   ├── Colyseus matchmaking and WebSocket transport
   ├── immutable production game registry
@@ -37,6 +37,32 @@ path to the same Node process.
 There is deliberately no installed database, Redis, message broker, external
 matchmaker, microservice, or game worker. SQLite is the selected future durable
 store, introduced only with the first concrete durable fact.
+
+### Production routing on helium
+
+The production container still has one application process and one internal
+port. The current access paths are deployment infrastructure around that same
+port:
+
+```text
+Public browser
+  -> Cloudflare
+  -> helium host port 4478
+  -> Docker mapping 4478:3000
+  -> Node HTTP + WebSocket server on container port 3000
+
+Coolify HTTPS origin proxy
+  -> generated Traefik/Caddy upstream labels for port 3000
+  -> the same container port 3000
+
+Container/Coolify health checks
+  -> http://127.0.0.1:3000/api/health
+```
+
+`COOKIE_SECRET` is a runtime-only Coolify variable. Deployment must not expose
+it as a Docker build argument. The operational source of truth is the
+[Coolify runbook](../coolify/README.md), whose helpers validate the port mapping,
+health check, proxy labels, secret scope, tunnel origin, and public endpoint.
 
 ## Workspace boundaries and dependency direction
 
@@ -80,7 +106,7 @@ protocol package rather than mirrored interfaces or server runtime modules.
 | HTTP catalogue snapshot and mutations | Server facts cached by TanStack Query | Renders request lifecycle and sends validated inputs |
 | Room membership and host | Colyseus room state | Renders synchronized state |
 | Selected game | Lobby room after host authorization | Sends selection intent and renders result |
-| Future actions and outcomes | Authoritative game room/engine | Sends intent and may render prediction |
+| Game actions and outcomes | Authoritative game room/engine | Sends intent and may render prediction |
 | Current socket | Web connection provider and Colyseus SDK | Connects, leaves, and reconnects |
 | Shareable room location | Browser URL | Navigates to `/room/:code` |
 
@@ -195,9 +221,10 @@ but signature verification and connection-derived identity are the actual trust
 boundaries.
 
 Current rate limits use both the trusted anonymous player ID and direct socket
-address. The server does not trust `X-Forwarded-For` because the current
-deployment defines no trusted reverse proxy. Adding one requires explicit proxy
-configuration before forwarded headers can influence security behavior.
+address. Cloudflare and Coolify proxy production traffic, but the application
+does not define either as a trusted security boundary and therefore ignores
+`X-Forwarded-For`. Forwarded headers may influence security behavior only after
+the exact proxy chain and trusted-hop configuration are explicitly modeled.
 
 ## Browser state and reconnection
 
@@ -221,8 +248,8 @@ the Colyseus token. Transparent refresh recovery is not implemented.
 ## Process lifecycle and failure semantics
 
 Live rooms, code mappings, players, timers, and reconnection state exist only in
-memory. A server restart terminates them. This is accepted behavior because the
-current product has no durable-data requirement.
+memory. A server restart or Coolify deployment terminates them. This is accepted
+behavior because the current product has no durable-data requirement.
 
 `SIGINT` and `SIGTERM` start shutdown once. New room creation is rejected after
 shutdown begins; Colyseus then shuts down, the transport stops, and the HTTP
@@ -302,9 +329,9 @@ state, seeded course generation, physics/collision engine, canvas renderer, and
 tests. `play_again` is the host-only convention the games use to return to a
 lobby and start the next game automatically when everyone is connected. The
 transitions and lifecycles stay feature-local: no generic base room, transition
-state machine, or lifecycle machinery has been extracted for future games.
+state machine, or lifecycle machinery has been extracted for additional games.
 
-See [Adding a game](adding-a-game.md) for the boundaries future games must
+See [Adding a game](adding-a-game.md) for the boundaries additional games must
 satisfy, and the [room lifecycle
 contract](../apps/server/src/rooms/docs/room-lifecycle.md) for the transition
 details.

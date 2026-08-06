@@ -24,6 +24,9 @@ web-only, and protocol-only checks in their scoped files.
   source of truth.
 - Untrusted HTTP, WebSocket, environment, cookie, and third-party values are
   parsed before domain code consumes them.
+- Keep container listen ports, published mappings, health-check targets, and
+  proxy upstreams aligned. Inject secrets only at runtime, never as image build
+  arguments.
 - Error responses use stable codes, expose safe messages, and never include
   stack traces, secrets, or provider internals.
 - Identity, codes, tokens, and security-sensitive seeds use `node:crypto`, not

@@ -20,9 +20,16 @@ const sounds = vi.hoisted(() => ({
   scoreResult: vi.fn(),
 }));
 
+const feedback = vi.hoisted(() => ({
+  gameFeedback: vi.fn(),
+  hapticFeedback: vi.fn(),
+  primeGameFeedback: vi.fn(),
+}));
+
 vi.mock("../games/capital-pin/audio/GeoPinSounds.js", () => ({
   geoPinSounds: sounds,
 }));
+vi.mock("../feedback.js", () => feedback);
 
 describe("CapitalPinGameView", () => {
   beforeEach(() => {
@@ -63,6 +70,26 @@ describe("CapitalPinGameView", () => {
       type: "game:submit",
       payload: { type: "submit", roundNumber: 1, latitude: 48.85, longitude: 2.35 },
     });
+    expect(feedback.hapticFeedback).toHaveBeenCalledWith("select");
+    expect(feedback.hapticFeedback).toHaveBeenCalledWith("confirm");
+  });
+
+  it("shows the how-to briefly on round one and hides it on later rounds", async () => {
+    const state = makeCapitalPinState("round", { roundNumber: 1 });
+    const { connection } = makeRoomConnection(state);
+    const { rerender } = render(
+      <CapitalPinGameView connection={connection} state={state} selfSessionId="host-session" />,
+    );
+    expect(screen.getByText("How to play Capital Pin")).toBeInTheDocument();
+    rerender(
+      <CapitalPinGameView
+        connection={connection}
+        state={makeCapitalPinState("round", { roundNumber: 2 })}
+        selfSessionId="host-session"
+      />,
+    );
+    await act(async () => {});
+    expect(screen.queryByText("How to play Capital Pin")).not.toBeInTheDocument();
   });
 
   it("locks the answer button once the server marks the player as submitted", async () => {

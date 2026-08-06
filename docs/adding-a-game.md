@@ -34,7 +34,7 @@ Clients send intentions. They never submit an accepted position, collision,
 score, death, timer result, seed, or winner. The room derives the actor from the
 connected Colyseus client.
 
-## Suggested first-game layout
+## Suggested game layout
 
 Use feature-local modules in the existing workspaces instead of creating a new
 workspace or plugin system:
@@ -57,7 +57,7 @@ apps/web/src/games/<game-id>/
 └── *.test.tsx
 ```
 
-This shape is a default for the first implementations, not a generic extension
+This shape is the default for additional games, not a generic extension
 contract. Omit `engine.ts` when the rules are clearer directly in a small room.
 Add files only when they have a concrete responsibility. Do not add a base game
 room, universal engine interface, dynamic loader, or package per game.
@@ -173,6 +173,10 @@ validated intent messages. It must:
 
 - work at 320 CSS pixels without page-level horizontal scrolling;
 - use accessible semantic controls with visible focus and adequate touch sizes;
+- show a brief rules-and-controls message during the initial countdown (or the
+  opening seconds of a game without one) and auto-dismiss it;
+- add subtle audio and haptic feedback for actions and outcomes, initialized
+  from user gestures and never the only signal for an important state;
 - communicate phase, status, results, and errors without color alone;
 - respect required orientation and reduced-motion preferences;
 - clean up subscriptions, input listeners, animation frames, and timers;
@@ -183,9 +187,9 @@ Use the application theme, MUI primitives, responsive `sx`, and the shared
 provider stack. Do not introduce game-local CSS or a second component system for
 ordinary controls and layout.
 
-Do not add a generic client game loader before the first concrete renderer makes
-its actual needs known. Explicit imports and a small switch over trusted game IDs
-are acceptable for the first game.
+Do not replace explicit trusted game registration with a generic client plugin
+loader merely to remove a small switch. Current renderers use explicit imports;
+extract shared loading machinery only when concrete duplication makes it simpler.
 
 ## 6. Test the complete authority boundary
 

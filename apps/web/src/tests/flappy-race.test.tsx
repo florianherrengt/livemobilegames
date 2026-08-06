@@ -9,6 +9,14 @@ import {
 } from "../games/flappy-race/fixtures.js";
 import { FlappyRaceGameView } from "../games/flappy-race/game-view.js";
 
+const feedback = vi.hoisted(() => ({
+  gameFeedback: vi.fn(),
+  hapticFeedback: vi.fn(),
+  primeGameFeedback: vi.fn(),
+}));
+
+vi.mock("../feedback.js", () => feedback);
+
 function createMockContext(): CanvasRenderingContext2D {
   return {
     setTransform: vi.fn(),
@@ -31,6 +39,7 @@ function createMockContext(): CanvasRenderingContext2D {
 
 describe("FlappyRaceGameView", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(createMockContext());
     vi.stubGlobal("requestAnimationFrame", () => 1);
     vi.stubGlobal("cancelAnimationFrame", () => undefined);
@@ -71,11 +80,29 @@ describe("FlappyRaceGameView", () => {
     expect(screen.getByText("Bob")).toBeInTheDocument();
   });
 
+  it("shows the how-to during countdown and hides it once running", () => {
+    const state = makeFlappyRaceState("countdown");
+    const { connection } = makeRoomConnection(state);
+    const { rerender } = render(
+      <FlappyRaceGameView connection={connection} state={state} selfSessionId="host-session" />,
+    );
+    expect(screen.getByText("How to play Flappy Race")).toBeInTheDocument();
+    rerender(
+      <FlappyRaceGameView
+        connection={connection}
+        state={makeFlappyRaceState("running")}
+        selfSessionId="host-session"
+      />,
+    );
+    expect(screen.queryByText("How to play Flappy Race")).not.toBeInTheDocument();
+  });
+
   it("sends a flap intent from the accessible flap button", () => {
     const state = makeFlappyRaceState("running");
     const { connection, sent } = makeRoomConnection(state);
     render(<ArenaView connection={connection} state={state} selfSessionId="host-session" />);
     fireEvent.click(screen.getByTestId("flappy-flap-button"));
+    expect(feedback.gameFeedback).toHaveBeenCalledWith("move");
     expect(sent).toContainEqual({
       type: "game:flap",
       payload: { type: "flap", sequence: 1, roundNumber: 1 },

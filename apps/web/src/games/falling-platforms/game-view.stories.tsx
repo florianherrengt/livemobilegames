@@ -11,12 +11,14 @@ function makeArgs(
     roundNumber?: number;
     draw?: boolean;
     aliceAlive?: boolean;
+    playerCount?: number;
   } = {},
 ) {
   const state = makeFallingPlatformsState(phase, {
     roundNumber: options.roundNumber ?? (phase === "lobby" ? 0 : 1),
     draw: options.draw ?? false,
     aliceAlive: options.aliceAlive ?? true,
+    playerCount: options.playerCount ?? 2,
     winnerSessionId: options.draw === true ? "" : "host-session",
   });
   const { connection } = makeRoomConnection(state);
@@ -94,6 +96,15 @@ export const Spectating: Story = {
     selfSessionId: string;
   }) => <FallingPlatformsGameView {...args} />,
   args: makeArgs("playing", { aliceAlive: false }),
+};
+
+export const EightPlayers: Story = {
+  render: (args: {
+    connection: RoomConnection;
+    state: ReturnType<typeof makeFallingPlatformsState>;
+    selfSessionId: string;
+  }) => <FallingPlatformsGameView {...args} />,
+  args: makeArgs("playing", { playerCount: 8 }),
 };
 
 export const Results: Story = {

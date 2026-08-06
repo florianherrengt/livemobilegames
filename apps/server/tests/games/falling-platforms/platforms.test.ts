@@ -107,7 +107,7 @@ describe("seeded spawning", () => {
     expect(startMatch(runtime, 0)).toBe(true);
     const spawns = [...runtime.players.values()].map((player) => player.currentPlatformId);
     expect(new Set(spawns).size).toBe(spawns.length);
-    expect(runtime.arenaSide).toBe(7);
+    expect(runtime.arenaSide).toBe(5);
 
     const runtime2 = makeRuntime({ e2eMode: true });
     runtime2.phase = "lobby";
@@ -127,7 +127,7 @@ describe("seeded spawning", () => {
     addPlayer(runtime, "p1", "P1", 0);
     addPlayer(runtime, "p2", "P2", 1);
     expect(startMatch(runtime, 0)).toBe(true);
-    expect(runtime.arenaSide).toBe(7);
+    expect(runtime.arenaSide).toBe(5);
     const spawns = [...runtime.players.values()].map((player) => player.currentPlatformId);
     expect(spawns).toEqual(["3:3", "3:4"]);
 

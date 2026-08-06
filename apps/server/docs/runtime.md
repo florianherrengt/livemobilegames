@@ -77,12 +77,37 @@ When `apps/web/dist` exists, hashed assets are served with long-lived immutable
 caching and the SPA entry point with `no-cache`. In development, Vite serves the
 web app and proxies `/api`, `/matchmake`, and `/colyseus` to this server.
 
+## Production container and helium routing
+
+The root `Dockerfile` builds protocol, server, and web artifacts, then starts
+`node apps/server/dist/index.js` as the unprivileged `node` user. The image
+defaults `NODE_ENV=production`, `HOST=0.0.0.0`, `PORT=3000`,
+`COLYSEUS_PATH=/colyseus`, and `LOG_LEVEL=info`. Its container health check calls
+`http://127.0.0.1:$PORT/api/health`.
+
+The current Coolify application on helium must keep these settings aligned:
+
+- Dockerfile build pack, repository base `/`, Dockerfile `/Dockerfile`;
+- exposed container port `3000`;
+- host mapping `4478:3000` for the Cloudflare tunnel;
+- enabled `GET /api/health` check against `127.0.0.1:3000` expecting 200;
+- generated Traefik and Caddy upstream labels targeting `3000`;
+- `COOKIE_SECRET` present at runtime only, never at build time.
+
+Cloudflare's route through host port `4478` and Coolify's direct HTTPS proxy are
+two infrastructure paths to the same Node process. They do not authorize a
+second server, CORS layer, or separate WebSocket service. Coolify API port
+updates do not reliably regenerate existing proxy labels, so production changes
+must use the validation and synchronization helpers documented in the
+[Coolify runbook](../../../coolify/README.md).
+
 ## In-memory state and restart behavior
 
 Colyseus local presence, active rooms, synchronized room state, and the
 room-code directory live only in this process. A restart ends all rooms and
-invalidates every code and reconnection token. This is current product behavior,
-not an incomplete persistence implementation.
+invalidates every code and reconnection token. A Coolify restart or deployment
+has the same consequence. This is current product behavior, not an incomplete
+persistence implementation.
 
 SQLite is the selected future store, but it is introduced only with the first
 concrete durable fact. Do not add an empty schema or unused driver. Redis, an

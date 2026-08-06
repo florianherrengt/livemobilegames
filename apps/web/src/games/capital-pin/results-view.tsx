@@ -3,6 +3,7 @@ import { type CapitalPinState, formatDistanceKm } from "@phone-party/protocol";
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { hapticFeedback } from "../../feedback.js";
 import { geoPinSounds } from "./audio/GeoPinSounds.js";
 import { computeResultsCamera, type Point } from "./map/camera.js";
 import { MapMarker } from "./map/map-marker.js";
@@ -102,6 +103,7 @@ function ResultsMapContent({
 
     void geoPinSounds.initialise();
     geoPinSounds.answerReveal();
+    hapticFeedback("select");
 
     const selfGuess = result.guesses.find((guess) => guess.sessionId === selfSessionId);
     if (selfGuess) {
@@ -110,6 +112,7 @@ function ResultsMapContent({
     }
     if (result.winnerSessionIds.includes(selfSessionId)) {
       soundTimersRef.current.push(window.setTimeout(() => geoPinSounds.roundWin(), 850));
+      soundTimersRef.current.push(window.setTimeout(() => hapticFeedback("win"), 850));
     }
   }, [map, result, selfSessionId]);
 

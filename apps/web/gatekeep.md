@@ -35,6 +35,10 @@ Storybook, mobile UI, accessibility, and browser-test mistakes.
   reconnecting, and disconnected states.
 - Screens remain usable at 320 CSS pixels without page-level horizontal scroll;
   touch targets, wrapping, focus, contrast, and reduced motion remain usable.
+- Every game introduces its rules and controls with a brief how-to that
+  auto-dismisses when play begins.
+- Audio and haptic feedback is subtle, initialized from a user gesture, and
+  never the only signal for an important state.
 - Controls have accessible names and semantics, inputs have visible labels,
   color is not the only signal, and important dynamic state is announced.
 - Stories use the shared provider stack, avoid real network calls, and cover

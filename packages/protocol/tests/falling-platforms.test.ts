@@ -108,8 +108,10 @@ describe("platform id helpers", () => {
 
 describe("arena math", () => {
   it("grows the arena with player count and keeps an odd side", () => {
-    expect(computeArenaSide(2)).toBe(7);
-    expect(computeArenaSide(3)).toBe(7);
+    expect(computeArenaSide(2)).toBe(5);
+    expect(computeArenaSide(3)).toBe(5);
+    expect(computeArenaSide(4)).toBe(5);
+    expect(computeArenaSide(5)).toBe(7);
     expect(computeArenaSide(8)).toBe(7);
     expect(computeArenaSide(12)).toBe(9);
   });

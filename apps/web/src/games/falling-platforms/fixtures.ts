@@ -1,5 +1,6 @@
 import type { Client, Room } from "@colyseus/sdk";
 import {
+  computeArenaSide,
   FALLING_PLATFORMS_GAME_ID,
   FallingPlatformPlatformState,
   type FallingPlatformsPhase,
@@ -30,7 +31,9 @@ export function makeFallingPlatformsState(
     winnerSessionId?: string;
     draw?: boolean;
     hostSessionId?: string;
+    playerCount?: number;
     alicePlatform?: string;
+    aliceTargetPlatform?: string;
     aliceJumping?: boolean;
     aliceAlive?: boolean;
     bobPlatform?: string;
@@ -39,18 +42,19 @@ export function makeFallingPlatformsState(
   } = {},
 ): FallingPlatformsState {
   const state = new FallingPlatformsState();
+  const playerCount = options.playerCount ?? 2;
   state.roomCode = "ABC234";
   state.gameId = FALLING_PLATFORMS_GAME_ID;
   state.phase = phase;
   state.roundNumber = options.roundNumber ?? (phase === "lobby" ? 0 : 1);
-  state.aliveCount = options.aliveCount ?? 2;
+  state.aliveCount = options.aliveCount ?? playerCount;
   state.winnerSessionId = options.winnerSessionId ?? "";
   state.draw = options.draw ?? false;
   state.hostSessionId = options.hostSessionId ?? "host-session";
   if (phase === "playing" || phase === "results") {
-    state.arenaSide = 7;
+    state.arenaSide = computeArenaSide(playerCount);
     state.matchStartedAt = Date.now() - 1_000;
-    addPlatforms(state, 7);
+    addPlatforms(state, state.arenaSide);
   }
 
   const alice = new FallingPlatformsPlayerState();
@@ -62,7 +66,7 @@ export function makeFallingPlatformsState(
   alice.currentPlatformId = options.alicePlatform ?? "3:3";
   if (alice.jumping) {
     alice.fromPlatformId = options.alicePlatform ?? "3:3";
-    alice.targetPlatformId = "4:3";
+    alice.targetPlatformId = options.aliceTargetPlatform ?? "4:3";
     alice.jumpStartedAt = Date.now() - 100;
     alice.jumpEndsAt = Date.now() + 260;
   }
@@ -77,6 +81,18 @@ export function makeFallingPlatformsState(
   bob.currentPlatformId = options.bobPlatform ?? "3:4";
   bob.joinedOrder = 1;
   state.players.set("bob-session", bob);
+  if (phase === "playing" || phase === "results") {
+    for (let index = 2; index < playerCount; index++) {
+      const extra = new FallingPlatformsPlayerState();
+      extra.name = `Player ${index + 1}`;
+      extra.connected = true;
+      extra.participating = true;
+      extra.alive = true;
+      extra.currentPlatformId = `${index % state.arenaSide}:${Math.floor(index / state.arenaSide)}`;
+      extra.joinedOrder = index;
+      state.players.set(`extra-${index}`, extra);
+    }
+  }
   return state;
 }
 

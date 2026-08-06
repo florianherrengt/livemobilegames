@@ -17,6 +17,8 @@ being changed.
   state, Colyseus room connection, Storybook, and browser tests.
 - `packages/protocol` -> `@phone-party/protocol`: browser-safe Zod contracts,
   inferred types, constants, and Colyseus schema state shared by server and web.
+- `coolify`: local, credential-safe production configuration, deployment,
+  monitoring, and verification helpers for the helium Coolify application.
 - `docs`: cross-cutting architecture and game-authoring guidance.
 
 Dependencies point inward through the protocol package:
@@ -53,16 +55,23 @@ on an ordinary Linux host.
 
 ## Current product state
 
-- The production game catalogue is empty. Test game definitions must never be
-  registered in `production-games.ts` or exposed by the production API.
-- Rooms start as platform lobbies before a game is chosen. `select_game` only
-  stores a registry-validated game ID; lobby-to-game transition, countdown,
-  gameplay, and results do not exist yet.
+- The production catalogue explicitly registers Capital Pin, Falling Platforms,
+  and Flappy Race. Test game definitions must never be registered in
+  `production-games.ts` or exposed by the production API.
+- Rooms start as platform lobbies. The host selects a registry-validated game
+  and `start_game` moves the trusted roster into that game's locked Colyseus
+  room. All three games implement authoritative gameplay, results, and rematch
+  or lobby-return behavior.
 - Active rooms, room codes, memberships, and reconnection state are ephemeral.
-  A process restart ends them. A browser refresh currently requires joining the
-  room again through its URL.
+  A process restart or deployment ends them. A lobby refresh can join again
+  through the room URL; a running game is locked, so mid-game continuity relies
+  on Colyseus reconnection within its grace window rather than page refresh.
 - SQLite is the chosen future durable store, but the driver and schema remain
   deliberately undecided until the first durable fact is requested.
+- Production runs commit `main` through Coolify on helium. Container port
+  `3000`, host mapping `4478:3000`, `/api/health`, runtime-only
+  `COOKIE_SECRET`, and generated proxy labels are validated by the helpers in
+  `coolify/`; `coolify/README.md` is the operational runbook.
 
 ## Architectural invariants
 
@@ -132,6 +141,9 @@ when the architecture changes.
   ownership, HTTP and Colyseus boundaries, accessibility, and testing.
 - `packages/protocol/docs/standards.md`: rules for shared schemas, types,
   state, and exports.
+- `coolify/README.md`: production identifiers, required Coolify settings,
+  deployment workflow, health verification, troubleshooting, and the current
+  Cloudflare tunnel boundary.
 
 ## Workflow and definition of done
 

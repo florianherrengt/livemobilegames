@@ -122,7 +122,7 @@ abstraction before multiple games demonstrate the same responsibility.
 - `RoomDirectory` owns the only room-code map. Callers receive copies and MUST
   NOT retain a second mutable index.
 - A room's Colyseus state is authoritative for its live players, host, selected
-  game, and future gameplay state.
+  game, and gameplay state.
 - Derived values SHOULD be computed from authoritative state instead of copied
   into parallel mutable fields.
 - Cryptographic identity, codes, tokens, and security-sensitive seeds MUST use

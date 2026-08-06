@@ -30,7 +30,7 @@ async function swipeRight(page: Page): Promise<void> {
   const arena = page.getByTestId("falling-platforms-arena");
   // The swipe is dispatched on the arena itself with the same pointer
   // sequence the browser produces for a touch drag; coordinates stay inside
-  // the viewport so the gesture is independent of the camera transform.
+  // the viewport so the gesture is independent of the fitted arena transform.
   await arena.dispatchEvent("pointerdown", {
     pointerId: 1,
     pointerType: "touch",
@@ -51,6 +51,41 @@ async function swipeRight(page: Page): Promise<void> {
     isPrimary: true,
     clientX: 160,
     clientY: 100,
+  });
+}
+
+async function expectPlatformVisible(page: Page, platformId: string): Promise<void> {
+  const arenaBox = await page.getByTestId("falling-platforms-arena").boundingBox();
+  const platformBox = await page.getByTestId(`platform-${platformId}`).boundingBox();
+  expect(arenaBox).not.toBeNull();
+  expect(platformBox).not.toBeNull();
+  if (!arenaBox || !platformBox) {
+    return;
+  }
+  expect(platformBox.x).toBeGreaterThanOrEqual(arenaBox.x - 1);
+  expect(platformBox.y).toBeGreaterThanOrEqual(arenaBox.y - 1);
+  expect(platformBox.x + platformBox.width).toBeLessThanOrEqual(arenaBox.x + arenaBox.width + 1);
+  expect(platformBox.y + platformBox.height).toBeLessThanOrEqual(arenaBox.y + arenaBox.height + 1);
+}
+
+async function expectPlatformLarge(page: Page, platformId: string): Promise<void> {
+  const platformBox = await page.getByTestId(`platform-${platformId}`).boundingBox();
+  expect(platformBox).not.toBeNull();
+  if (!platformBox) {
+    return;
+  }
+  expect(platformBox.width).toBeGreaterThan(100);
+  expect(platformBox.height).toBeGreaterThan(100);
+}
+
+async function expectArenaResized(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const arena = document.querySelector('[data-testid="falling-platforms-arena"]');
+    if (!arena) {
+      return false;
+    }
+    const rect = arena.getBoundingClientRect();
+    return rect.width <= window.innerWidth + 1 && rect.height <= window.innerHeight + 1;
   });
 }
 
@@ -86,8 +121,12 @@ test("two phones play a deterministic Falling Platforms round and a second round
   );
   await expect(alice.getByTestId("falling-platforms-arena")).toHaveAttribute(
     "data-arena-side",
-    "7",
+    "5",
   );
+  await expectPlatformVisible(alice, "3:3");
+  await expectPlatformLarge(alice, "3:3");
+  await expectPlatformVisible(bob, "3:4");
+  await expectPlatformLarge(bob, "3:4");
   await expect(alice.getByTestId("falling-platforms-arena")).toHaveAttribute(
     "data-alive-count",
     "2",
@@ -96,6 +135,8 @@ test("two phones play a deterministic Falling Platforms round and a second round
     "data-local-platform",
     "3:3",
   );
+  await expect(alice.getByText("How to play Falling Platforms")).not.toBeVisible();
+  await expect(bob.getByText("How to play Falling Platforms")).not.toBeVisible();
   await expect(bob.getByTestId("falling-platforms-arena")).toHaveAttribute(
     "data-local-platform",
     "3:4",
@@ -116,6 +157,8 @@ test("two phones play a deterministic Falling Platforms round and a second round
   await expect(bob.getByTestId("player-Alice")).toHaveAttribute("data-platform", "4:3", {
     timeout: 10_000,
   });
+  await expectPlatformVisible(alice, "4:3");
+  await expectPlatformLarge(alice, "4:3");
 
   // Bob's spawn is the deterministic first warning target: it warns, then
   // collapses and eliminates the standing player on both phones.
@@ -171,6 +214,10 @@ test("two phones play a deterministic Falling Platforms round and a second round
   // page scroll.
   for (const page of [alice, bob]) {
     await page.setViewportSize({ width: 320, height: 568 });
+    await expectArenaResized(page);
+    const localPlatform = page === alice ? "3:3" : "3:4";
+    await expectPlatformVisible(page, localPlatform);
+    await expectPlatformLarge(page, localPlatform);
     const noHorizontalScroll = await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
     );

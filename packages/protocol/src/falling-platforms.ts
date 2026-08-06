@@ -85,11 +85,11 @@ export type DifficultyStep = {
  * server game constants module.
  */
 export const FALLING_PLATFORMS_CONSTANTS = {
-  TILE_SIZE: 52,
-  TILE_GAP: 6,
-  TILE_PITCH: 58,
+  TILE_SIZE: 104,
+  TILE_GAP: 12,
+  TILE_PITCH: 116,
   HOP_DURATION_MS: 360,
-  JUMP_VISUAL_HEIGHT: 46,
+  JUMP_VISUAL_HEIGHT: 92,
   PLATFORM_WARNING_MS: 900,
   INITIAL_SAFE_PERIOD_MS: 2_000,
   COUNTDOWN_MS: 3_000,
@@ -166,10 +166,11 @@ export function hopEaseOut(t: number): number {
 
 /**
  * Arena side length for a given number of participating players.
- * Grows with the player count with no arbitrary gameplay cap.
+ * Keeps roughly six platforms per player with a 5x5 minimum so the grid
+ * grows with the player count instead of staying fixed.
  */
 export function computeArenaSide(playerCount: number): number {
-  const desiredPlatformCount = Math.max(49, playerCount * 6);
+  const desiredPlatformCount = Math.max(25, playerCount * 6);
   const side = Math.ceil(Math.sqrt(desiredPlatformCount));
   return side % 2 === 0 ? side + 1 : side;
 }

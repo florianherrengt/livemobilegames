@@ -364,14 +364,23 @@ describe("Flappy Race room integration", () => {
   });
 
   it("returns to the lobby when every player disconnects mid-match", async () => {
-    const { reservations } = await createDirectRoom();
+    const { room, reservations } = await createDirectRoom();
     const alice = await consumeGame(test, reservations[0]);
     const bob = await consumeGame(test, reservations[1]);
     await waitFor(() => alice.state.phase === "countdown");
 
     alice.connection.close();
     bob.connection.close();
-    await waitFor(() => alice.state.phase === "lobby" || alice.state.players.size === 0, 15_000);
+    await waitFor(() => {
+      const localRoom = matchMaker.getLocalRoomById(room.roomId) as
+        | { state: FlappyRaceState }
+        | undefined;
+      return (
+        localRoom === undefined ||
+        localRoom.state.phase === "lobby" ||
+        localRoom.state.players.size === 0
+      );
+    }, 15_000);
   });
 
   it("disposes the game room when a roster player never arrives", async () => {

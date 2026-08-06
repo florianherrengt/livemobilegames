@@ -8,6 +8,8 @@ import {
 } from "@phone-party/protocol";
 import { useEffect, useRef, useState } from "react";
 
+import { HowToPlay } from "../../components/how-to-play.js";
+import { gameFeedback, primeGameFeedback } from "../../feedback.js";
 import type { RoomConnection } from "../../game-connection.js";
 
 const MAX_EXTRAPOLATION_MS = 80;
@@ -173,6 +175,8 @@ export function ArenaView({
   const [flapError, setFlapError] = useState<string | null>(null);
 
   const local = state.players.get(selfSessionId);
+  const wasRoundActiveRef = useRef(local?.roundActive ?? false);
+  const wasRoundResultRef = useRef(false);
   const canFlap =
     (state.phase === "countdown" || state.phase === "running") &&
     local !== undefined &&
@@ -183,6 +187,8 @@ export function ArenaView({
     local.matchRemoved ||
     !local.roundActive ||
     state.phase === "round-result";
+  const currentRoundActive = local?.roundActive ?? false;
+  const roundWinnersSnapshot = [...state.roundWinnerSessionIds].join("|");
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -225,11 +231,31 @@ export function ArenaView({
   }, []);
 
   useEffect(() => {
+    if (wasRoundActiveRef.current && !currentRoundActive && state.phase === "running") {
+      gameFeedback("eliminated");
+    }
+    wasRoundActiveRef.current = currentRoundActive;
+  }, [currentRoundActive, state.phase]);
+
+  useEffect(() => {
+    const isRoundResult = state.phase === "round-result";
+    if (
+      isRoundResult &&
+      !wasRoundResultRef.current &&
+      roundWinnersSnapshot.split("|").includes(selfSessionId)
+    ) {
+      gameFeedback("win");
+    }
+    wasRoundResultRef.current = isRoundResult;
+  }, [roundWinnersSnapshot, selfSessionId, state.phase]);
+
+  useEffect(() => {
     const off = connection.room.onMessage(FLAPPY_RACE_MESSAGE_TYPES.flapRejected, (payload) => {
       const parsed = flapRejectionSchema.safeParse(payload);
       if (!parsed.success) {
         return;
       }
+      gameFeedback("invalid");
       setFlapError(parsed.data.reason === "rate-limited" ? "Flapping too fast." : "Flap rejected.");
       if (flapErrorTimerRef.current !== null) {
         window.clearTimeout(flapErrorTimerRef.current);
@@ -256,6 +282,7 @@ export function ArenaView({
       return;
     }
     sequenceRef.current += 1;
+    gameFeedback("move");
     connection.room.send(FLAPPY_RACE_MESSAGE_TYPES.flap, {
       type: "flap",
       sequence: sequenceRef.current,
@@ -267,6 +294,7 @@ export function ArenaView({
     if (event.pointerType === "mouse" && event.button !== 0) {
       return;
     }
+    primeGameFeedback();
     handleFlap();
   };
 
@@ -332,6 +360,17 @@ export function ArenaView({
           aria-label="Flappy Race course with shared obstacles and every player's bird"
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
         />
+
+        {state.phase === "countdown" && (
+          <HowToPlay
+            title="How to play Flappy Race"
+            points={[
+              "Tap the course or press Flap to flap.",
+              "Fly through the gaps — hitting an obstacle ends your round.",
+              "The furthest bird wins; five rounds decide the match.",
+            ]}
+          />
+        )}
 
         {state.phase === "countdown" && (
           <Box

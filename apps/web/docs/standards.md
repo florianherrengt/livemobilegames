@@ -124,6 +124,10 @@ Use this styling order:
 - Status presentation MUST combine text or accessible naming with color or icon
   treatment.
 - Motion MUST communicate state and respect reduced-motion preferences.
+- Games MUST show a brief rules-and-controls message during the initial
+  countdown (or opening seconds) and auto-dismiss it without user action.
+- Audio and haptic feedback MUST be subtle and optional, SHOULD initialize from
+  a user gesture, and MUST never be the only signal for an important state.
 
 ## 5. React behavior and state ownership
 
@@ -133,7 +137,7 @@ Use the narrowest owner that preserves the required behavior:
 - TanStack Query owns HTTP catalogue data and create/join mutation lifecycles.
 - `RoomConnectionProvider` owns the single live browser connection and its
   reconnecting status.
-- The Colyseus room owns synchronized lobby and future game state. Components
+- The Colyseus room owns synchronized lobby and game state. Components
   MUST derive views from `room.state` rather than copy it into Query or React
   state.
 - Local React state owns ephemeral interface state such as temporary clipboard
