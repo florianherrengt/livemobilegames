@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { boot, type ColyseusTestServer } from "@colyseus/testing";
+import { ColyseusTestServer, type ColyseusTestServer as TestServer } from "@colyseus/testing";
 import { expect } from "vitest";
 
 import { type AppConfig, loadConfig } from "../../src/config.js";
@@ -25,7 +25,7 @@ export function createTestConfig(overrides: NodeJS.ProcessEnv = {}): AppConfig {
 
 export type TestPlatform = {
   readonly platform: PlatformServer;
-  readonly testServer: ColyseusTestServer;
+  readonly testServer: TestServer;
 };
 
 export async function createTestPlatform(
@@ -39,16 +39,15 @@ export async function createTestPlatform(
     logger: createLogger("silent"),
     roomCreationToken,
   });
-  let rejectListenError: ((error: Error) => void) | undefined;
-  const listenError = new Promise<never>((_, reject) => {
-    rejectListenError = reject;
-  });
-  const onListenError = (error: Error): void => {
-    rejectListenError?.(error);
-  };
-  platform.httpServer.once("error", onListenError);
-  const testServer = await Promise.race([boot(platform.gameServer), listenError]);
-  platform.httpServer.off("error", onListenError);
+  // Bind an OS-assigned port instead of the @colyseus/testing default so
+  // concurrent worktree test processes cannot collide on the same listener.
+  await platform.gameServer.listen(0, "127.0.0.1");
+  const address = platform.httpServer.address();
+  if (address === null || typeof address === "string") {
+    throw new Error("Test server did not bind a TCP port");
+  }
+  (platform.gameServer as unknown as { port: number }).port = address.port;
+  const testServer = new ColyseusTestServer(platform.gameServer);
   // ColyseusSDK marks urlBuilder protected, but the runtime property is what the
   // web client also uses; tests need the same COLYSEUS_PATH URL building.
   const sdk = testServer.sdk as unknown as { urlBuilder: (url: URL) => string };

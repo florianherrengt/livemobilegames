@@ -56,11 +56,11 @@ on an ordinary Linux host.
 ## Current product state
 
 - The production catalogue explicitly registers Capital Pin, Falling Platforms,
-  and Flappy Race. Test game definitions must never be registered in
+  Flappy Race, and Memory Path. Test game definitions must never be registered in
   `production-games.ts` or exposed by the production API.
 - Rooms start as platform lobbies. The host selects a registry-validated game
   and `start_game` moves the trusted roster into that game's locked Colyseus
-  room. All three games implement authoritative gameplay, results, and rematch
+  room. All four games implement authoritative gameplay, results, and rematch
   or lobby-return behavior.
 - Active rooms, room codes, memberships, and reconnection state are ephemeral.
   A process restart or deployment ends them. A lobby refresh can join again

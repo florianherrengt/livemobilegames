@@ -55,17 +55,29 @@ async function swipeRight(page: Page): Promise<void> {
 }
 
 async function expectPlatformVisible(page: Page, platformId: string): Promise<void> {
+  await page.waitForFunction(
+    (id) => {
+      const arena = document.querySelector('[data-testid="falling-platforms-arena"]');
+      const platform = document.querySelector(`[data-testid="platform-${id}"]`);
+      if (!arena || !platform) {
+        return false;
+      }
+      const arenaBox = arena.getBoundingClientRect();
+      const platformBox = platform.getBoundingClientRect();
+      return (
+        platformBox.x >= arenaBox.x - 1 &&
+        platformBox.y >= arenaBox.y - 1 &&
+        platformBox.x + platformBox.width <= arenaBox.x + arenaBox.width + 1 &&
+        platformBox.y + platformBox.height <= arenaBox.y + arenaBox.height + 1
+      );
+    },
+    platformId,
+    { timeout: 5_000 },
+  );
   const arenaBox = await page.getByTestId("falling-platforms-arena").boundingBox();
   const platformBox = await page.getByTestId(`platform-${platformId}`).boundingBox();
   expect(arenaBox).not.toBeNull();
   expect(platformBox).not.toBeNull();
-  if (!arenaBox || !platformBox) {
-    return;
-  }
-  expect(platformBox.x).toBeGreaterThanOrEqual(arenaBox.x - 1);
-  expect(platformBox.y).toBeGreaterThanOrEqual(arenaBox.y - 1);
-  expect(platformBox.x + platformBox.width).toBeLessThanOrEqual(arenaBox.x + arenaBox.width + 1);
-  expect(platformBox.y + platformBox.height).toBeLessThanOrEqual(arenaBox.y + arenaBox.height + 1);
 }
 
 async function expectPlatformLarge(page: Page, platformId: string): Promise<void> {

@@ -2,7 +2,7 @@
 
 Rooms are ephemeral, server-authoritative Colyseus rooms addressed to people by
 a six-character code. The platform creates a lobby before a game is chosen, and
-the installed Capital Pin, Falling Platforms, and Flappy Race games transition
+the installed Capital Pin, Falling Platforms, Flappy Race, and Memory Path games transition
 the whole lobby into a registered game room when the host starts them.
 
 ## Ownership
@@ -219,6 +219,7 @@ loop inside that room:
 - Capital Pin: `lobby -> round -> round-results -> finished -> lobby`.
 - Falling Platforms: `lobby -> countdown -> playing -> results -> lobby`.
 - Flappy Race: `lobby -> countdown -> running -> round-result -> finished -> lobby`.
+- Memory Path: `lobby -> preparing -> preview -> racing -> round-result -> match-result -> lobby`.
 
 The games start themselves when the roster is complete, so the host starts
 once in the platform lobby. `play_again` is the host-only convention the games
@@ -226,7 +227,8 @@ use: it returns the room to its lobby and starts the next game immediately when
 everyone is connected. Falling Platforms resets the round counter for a fresh
 match and draws a new server-side seed for every round, while Capital Pin keeps
 its ten-round match and Flappy Race keeps its five-round match until
-`play_again` resets them.
+`play_again` resets them; Memory Path plays three normal rounds plus sudden
+death when leaders are tied, and `play_again` resets it for a fresh match.
 
 The platform still owns identity, room codes, membership, reservations,
 reconnection, and cleanup; the three feature-local transitions do not justify

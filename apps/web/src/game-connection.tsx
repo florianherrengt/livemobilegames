@@ -5,6 +5,7 @@ import {
   FlappyRaceState,
   type ISeatReservation,
   LobbyRoomState,
+  MemoryPathState,
   ROOM_MESSAGE_TYPES,
   roomTransitionSchema,
 } from "@phone-party/protocol";
@@ -21,7 +22,12 @@ import {
 
 import { createColyseusClient } from "./multiplayer.js";
 
-export type RoomState = LobbyRoomState | CapitalPinState | FallingPlatformsState | FlappyRaceState;
+export type RoomState =
+  | LobbyRoomState
+  | CapitalPinState
+  | FallingPlatformsState
+  | FlappyRaceState
+  | MemoryPathState;
 type RoomStateSchema = new () => RoomState;
 
 /**
@@ -32,6 +38,7 @@ const gameStateSchemas: Record<string, RoomStateSchema> = {
   "capital-pin": CapitalPinState,
   "falling-platforms": FallingPlatformsState,
   "flappy-race": FlappyRaceState,
+  "memory-path": MemoryPathState,
 };
 
 export type RoomConnection = {
