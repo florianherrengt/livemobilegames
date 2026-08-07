@@ -3,6 +3,7 @@ import {
   type CapitalPinState,
   type FallingPlatformsState,
   type FlappyRaceState,
+  type LiveDrawingGuessingState,
   normalizeRoomCode,
   roomCodeSchema,
 } from "@phone-party/protocol";
@@ -32,6 +33,12 @@ const FallingPlatformsGameView = lazy(() =>
 const FlappyRaceGameView = lazy(() =>
   import("../games/flappy-race/game-view.js").then((module) => ({
     default: module.FlappyRaceGameView,
+  })),
+);
+
+const LiveDrawingGuessingGameView = lazy(() =>
+  import("../games/live-drawing-guessing/game-view.js").then((module) => ({
+    default: module.LiveDrawingGuessingGameView,
   })),
 );
 
@@ -148,6 +155,26 @@ export function RoomPage() {
     );
   }
 
+  if (isLiveDrawingGuessingState(roomState)) {
+    return (
+      <Box sx={{ position: "relative", height: "100dvh" }}>
+        <Suspense
+          fallback={
+            <Paper sx={{ p: 2.25, m: 2 }}>
+              <Typography>Loading game…</Typography>
+            </Paper>
+          }
+        >
+          <LiveDrawingGuessingGameView
+            connection={connection}
+            state={roomState}
+            selfSessionId={selfSessionId}
+          />
+        </Suspense>
+      </Box>
+    );
+  }
+
   return (
     <Container component="main" maxWidth="sm" sx={{ py: { xs: 2.5, sm: 4 } }}>
       <Stack spacing={2}>
@@ -196,4 +223,8 @@ function isFallingPlatformsState(state: RoomState): state is FallingPlatformsSta
 
 function isFlappyRaceState(state: RoomState): state is FlappyRaceState {
   return "phase" in state && "obstacleOpenings" in state;
+}
+
+function isLiveDrawingGuessingState(state: RoomState): state is LiveDrawingGuessingState {
+  return "phase" in state && "letterPattern" in state && "strokes" in state;
 }

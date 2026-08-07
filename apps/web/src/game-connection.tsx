@@ -4,6 +4,7 @@ import {
   FallingPlatformsState,
   FlappyRaceState,
   type ISeatReservation,
+  LiveDrawingGuessingState,
   LobbyRoomState,
   ROOM_MESSAGE_TYPES,
   roomTransitionSchema,
@@ -21,7 +22,12 @@ import {
 
 import { createColyseusClient } from "./multiplayer.js";
 
-export type RoomState = LobbyRoomState | CapitalPinState | FallingPlatformsState | FlappyRaceState;
+export type RoomState =
+  | LobbyRoomState
+  | CapitalPinState
+  | FallingPlatformsState
+  | FlappyRaceState
+  | LiveDrawingGuessingState;
 type RoomStateSchema = new () => RoomState;
 
 /**
@@ -32,6 +38,17 @@ const gameStateSchemas: Record<string, RoomStateSchema> = {
   "capital-pin": CapitalPinState,
   "falling-platforms": FallingPlatformsState,
   "flappy-race": FlappyRaceState,
+  "live-drawing-guessing": LiveDrawingGuessingState,
+};
+
+/**
+ * Room types that a browser can join directly through the HTTP reservation
+ * flow. The platform lobby is the default; the Live Drawing room unlocks
+ * mid-match so late joiners can spectate.
+ */
+const roomTypeStateSchemas: Record<string, RoomStateSchema> = {
+  __platform_lobby: LobbyRoomState,
+  "live-drawing-guessing-room": LiveDrawingGuessingState,
 };
 
 export type RoomConnection = {
@@ -182,9 +199,13 @@ export function RoomConnectionProvider({ children }: { children: ReactNode }) {
       roomRef.current = null;
       clientRef.current = null;
       const client = createColyseusClient();
+      const StateClass = roomTypeStateSchemas[reservation.name];
+      if (StateClass === undefined) {
+        throw new Error("Unsupported room reservation");
+      }
       const room = (await client.consumeSeatReservation(
         reservation,
-        LobbyRoomState,
+        StateClass,
       )) as unknown as Room<unknown, RoomState>;
       // If the provider unmounted while the reservation was being consumed,
       // do not leak the newly connected room.
@@ -194,7 +215,7 @@ export function RoomConnectionProvider({ children }: { children: ReactNode }) {
       }
       roomRef.current = room;
       clientRef.current = client;
-      stateSchemaRef.current = LobbyRoomState;
+      stateSchemaRef.current = StateClass;
       setConnection({
         code,
         room,

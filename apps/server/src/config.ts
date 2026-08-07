@@ -25,6 +25,8 @@ export const configSchema = z.object({
   lobbyMaxClients: z.coerce.number().int().min(1).max(32).default(8),
   /** Shortens game round timings for integration and E2E suites. */
   e2eTestMode: booleanFromEnv,
+  /** Optional E2E-only drawing turn duration; defaults to the game constant. */
+  e2eTurnDurationMs: z.coerce.number().int().min(100).optional(),
   /** Deadline for all roster players to arrive in a registered game room. */
   capitalPinTransitionTimeoutMs: z.coerce.number().int().min(1).default(15_000),
   logLevel: logLevelSchema.default("info"),
@@ -42,6 +44,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     colyseusPath: env.COLYSEUS_PATH,
     lobbyMaxClients: env.LOBBY_MAX_CLIENTS,
     e2eTestMode: env.E2E_TEST_MODE,
+    e2eTurnDurationMs: env.E2E_TURN_DURATION_MS,
     capitalPinTransitionTimeoutMs: env.CAPITAL_PIN_TRANSITION_TIMEOUT_MS,
     logLevel: env.LOG_LEVEL,
   });

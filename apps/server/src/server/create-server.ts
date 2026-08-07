@@ -67,6 +67,7 @@ export async function createPlatformServer(deps: PlatformServerDeps): Promise<Pl
     createLobbyRoomClass({
       registry: deps.games,
       e2eMode: deps.config.e2eTestMode,
+      e2eTurnDurationMs: deps.config.e2eTurnDurationMs,
       transitionTimeoutMs: deps.config.capitalPinTransitionTimeoutMs,
       roomCreationToken,
       logger: deps.logger,
@@ -74,6 +75,7 @@ export async function createPlatformServer(deps: PlatformServerDeps): Promise<Pl
         startGameTransition(roomDirectory, deps.games, {
           ...input,
           e2eMode: deps.config.e2eTestMode,
+          e2eTurnDurationMs: deps.config.e2eTurnDurationMs,
           transitionTimeoutMs: deps.config.capitalPinTransitionTimeoutMs,
           roomCreationToken,
         }),

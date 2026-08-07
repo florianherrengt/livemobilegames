@@ -219,6 +219,7 @@ loop inside that room:
 - Capital Pin: `lobby -> round -> round-results -> finished -> lobby`.
 - Falling Platforms: `lobby -> countdown -> playing -> results -> lobby`.
 - Flappy Race: `lobby -> countdown -> running -> round-result -> finished -> lobby`.
+- Live Drawing & Guessing: `lobby -> preparing -> drawing -> result -> round-summary -> finished`.
 
 The games start themselves when the roster is complete, so the host starts
 once in the platform lobby. `play_again` is the host-only convention the games
@@ -229,5 +230,28 @@ its ten-round match and Flappy Race keeps its five-round match until
 `play_again` resets them.
 
 The platform still owns identity, room codes, membership, reservations,
-reconnection, and cleanup; the three feature-local transitions do not justify
+reconnection, and cleanup; the feature-local transitions do not justify
 generic transition or lifecycle machinery.
+
+### Live Drawing & Guessing
+
+Live Drawing & Guessing follows the same lobby-to-game transition, then runs
+three rounds of drawing turns (`preparing -> drawing -> result`) with a brief
+round summary between rounds and a final scoreboard. The drawer receives the
+private word through a `drawer:briefing` message and can request it again with
+`drawer:request`; guessers see only the category, a progressive letter pattern,
+and the live synchronized strokes.
+
+Two behaviors intentionally differ from the other installed games:
+
+- The game room unlocks itself as soon as a match starts. A player who joins by
+  room code mid-match consumes a normal HTTP seat reservation as a spectator:
+  they watch, cannot guess or draw, and become a participant when the host
+  presses Play again. The room rejects direct Colyseus matchmaking seats through
+  `onAuth`, so only the Hono join route (which knows the process-local token)
+  can issue spectator seats.
+- A participant who disconnects keeps their score and place in the drawing
+  order. If the current drawer drops, the turn holds for up to five seconds and
+  resumes on reconnect; otherwise it is skipped with no points. A guesser who
+  drops simply stops guessing until they reconnect, and the turn ends
+  immediately when no connected guessers remain.

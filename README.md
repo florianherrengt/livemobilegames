@@ -2,11 +2,13 @@
 
 Phone Party is a foundation for a phone-only multiplayer party-game platform. Every player uses their own phone browser; there is no shared television or host screen. The server is authoritative: it owns rooms, game state, timing, scoring, collisions, eliminations, and results. Clients send intentions and render locally.
 
-This repository contains the platform foundation and three installed games:
+This repository contains the platform foundation and four installed games:
 **Capital Pin** (drop a pin where you think each capital city is; closest guess
 wins the round) and **Falling Platforms** (hop across platforms as the arena
 collapses under you; last survivor wins), plus **Flappy Race** (tap to flap
-through a shared obstacle course; the furthest bird wins each round). The
+through a shared obstacle course; the furthest bird wins each round) and
+**Live Drawing & Guessing** (one player draws a secret word while everyone else
+guesses it live). The
 production game catalogue is a small, trusted, explicitly imported list — no
 test games or dynamic discovery ever appear there.
 
@@ -41,8 +43,17 @@ Tap to flap, dodge shared obstacles, and let the furthest bird win each of five
 rounds. The server owns the course, physics, collisions, round winners, final
 scoreboard, and rematch.
 
-A browser refresh mid-game cannot rejoin a locked room; reconnection within the
-grace window uses the Colyseus token.
+Live Drawing & Guessing runs three rounds in which every player draws three
+secret words. The drawer sees the word privately and draws live; guessers see
+the category, a progressive letter pattern, and the drawing, and the first
+exact correct guess scores a point for both players. The room unlocks during
+play so late joiners can spectate and join the next game, while the server
+keeps guesses private and owns words, reveals, timing, scoring, and winners.
+
+Capital Pin, Falling Platforms, and Flappy Race stay locked while running: a
+browser refresh mid-game cannot rejoin them; reconnection within the grace
+window uses the Colyseus token. Live Drawing & Guessing deliberately unlocks so
+late joiners can spectate.
 
 ## Architecture
 
@@ -198,7 +209,7 @@ matchmaking ownership and sticky WebSockets.
 
 ```text
 apps/server/          Hono API, Colyseus server, room infrastructure, game rooms
-apps/web/             React phone UI, Capital Pin map, Falling Platforms arena, Flappy Race canvas
+apps/web/             React phone UI, Capital Pin map, Falling Platforms arena, Flappy Race canvas, Live Drawing canvas
 packages/protocol/    Shared Zod schemas, Colyseus state, and inferred types
 docs/                 Architecture and game-authoring guides
 ```

@@ -53,6 +53,10 @@ be added to the production game list or appear in the production catalogue.
 Always stop the test platform in `afterEach`, even after failures. Await state
 changes with a bounded condition helper; do not add arbitrary sleeps.
 
+`@colyseus/testing`'s default port is hardcoded to 2568. The helper accepts a
+`TEST_SERVER_PORT` environment override so multiple worktrees on one machine can
+run integration suites without colliding.
+
 Some execution sandboxes reject all local listeners with `EPERM`. That is an
 environment limitation, not a reason to mock away the HTTP/WebSocket integration
 path. Run the suite on a normal developer machine or in CI.

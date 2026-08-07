@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { boot, type ColyseusTestServer } from "@colyseus/testing";
+import { ColyseusTestServer } from "@colyseus/testing";
 import { expect } from "vitest";
 
 import { type AppConfig, loadConfig } from "../../src/config.js";
@@ -32,7 +32,11 @@ export async function createTestPlatform(
   games: GameRegistry = createGameRegistry([testGameDefinition]),
   config: AppConfig = createTestConfig(),
   roomCreationToken: string = randomBytes(32).toString("hex"),
+  testPort = Number(process.env.TEST_SERVER_PORT ?? 2568),
 ): Promise<TestPlatform> {
+  if (!Number.isInteger(testPort) || testPort < 1 || testPort > 65535) {
+    throw new Error(`Invalid TEST_SERVER_PORT: ${testPort}`);
+  }
   const platform = await createPlatformServer({
     config,
     games,
@@ -47,7 +51,17 @@ export async function createTestPlatform(
     rejectListenError?.(error);
   };
   platform.httpServer.once("error", onListenError);
-  const testServer = await Promise.race([boot(platform.gameServer), listenError]);
+  const testServer = await Promise.race([
+    (async () => {
+      // @colyseus/testing's boot() always listens on its hardcoded default
+      // port when given a Server instance. Listening directly keeps the port
+      // overridable so multiple worktrees can run integration suites on one
+      // machine without colliding.
+      await platform.gameServer.listen(testPort);
+      return new ColyseusTestServer(platform.gameServer);
+    })(),
+    listenError,
+  ]);
   platform.httpServer.off("error", onListenError);
   // ColyseusSDK marks urlBuilder protected, but the runtime property is what the
   // web client also uses; tests need the same COLYSEUS_PATH URL building.

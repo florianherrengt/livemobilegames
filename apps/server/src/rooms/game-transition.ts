@@ -35,6 +35,7 @@ export async function startGameTransition(
     gameId: string;
     players: readonly TransitionPlayer[];
     e2eMode: boolean;
+    e2eTurnDurationMs: number | undefined;
     transitionTimeoutMs: number;
     roomCreationToken: string;
   },
@@ -44,25 +45,46 @@ export async function startGameTransition(
     throw new Error(`Game not registered: ${input.gameId}`);
   }
 
-  const createReservation = await matchMaker.create(definition.roomType, {
-    roomCode: input.roomCode,
-    players: input.players.map((player) => ({
-      playerId: player.playerId,
-      playerName: player.playerName,
-      isHost: player.isHost,
-      joinedOrder: player.joinedOrder,
-    })),
-    e2eMode: input.e2eMode,
-    transitionTimeoutMs: input.transitionTimeoutMs,
-    roomCreationToken: input.roomCreationToken,
-  });
+  const createReservation = await matchMaker.create(
+    definition.roomType,
+    {
+      roomCode: input.roomCode,
+      players: input.players.map((player) => ({
+        playerId: player.playerId,
+        playerName: player.playerName,
+        isHost: player.isHost,
+        joinedOrder: player.joinedOrder,
+      })),
+      e2eMode: input.e2eMode,
+      e2eTurnDurationMs: input.e2eTurnDurationMs,
+      transitionTimeoutMs: input.transitionTimeoutMs,
+      roomCreationToken: input.roomCreationToken,
+    },
+    {
+      token: input.roomCreationToken,
+      headers: new Headers(),
+      ip: "internal",
+    },
+  );
   try {
     const reservations = new Map<string, ISeatReservation>();
     for (const player of input.players) {
-      const reservation = await matchMaker.joinById(createReservation.roomId, {
-        playerId: player.playerId,
-        playerName: player.playerName,
-      });
+      const reservation = await matchMaker.joinById(
+        createReservation.roomId,
+        {
+          playerId: player.playerId,
+          playerName: player.playerName,
+        },
+        {
+          // Game rooms may define onAuth (the Live Drawing room does, to keep
+          // mid-game spectator seats server-issued). Roster joins are
+          // process-internal and must carry the same capability token the
+          // HTTP room service uses.
+          token: input.roomCreationToken,
+          headers: new Headers(),
+          ip: "internal",
+        },
+      );
       reservations.set(player.sessionId, reservation);
     }
 

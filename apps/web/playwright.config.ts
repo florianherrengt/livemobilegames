@@ -45,6 +45,9 @@ export default defineConfig({
       PUBLIC_ORIGIN: `http://127.0.0.1:${PORT}`,
       COLYSEUS_PATH: "/colyseus",
       E2E_TEST_MODE: "true",
+      // Browser automation needs a comfortable drawing window; the
+      // integration suite keeps the fast 1.5s default.
+      E2E_TURN_DURATION_MS: "5000",
       LOG_LEVEL: "silent",
     },
   },

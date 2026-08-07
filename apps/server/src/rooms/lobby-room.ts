@@ -27,6 +27,7 @@ type LobbyErrorCode =
 export type LobbyRoomDeps = {
   readonly registry: GameRegistry;
   readonly e2eMode: boolean;
+  readonly e2eTurnDurationMs: number | undefined;
   readonly transitionTimeoutMs: number;
   readonly roomCreationToken: string;
   readonly logger: Logger;
@@ -35,6 +36,7 @@ export type LobbyRoomDeps = {
     gameId: string;
     players: readonly TransitionPlayer[];
     e2eMode: boolean;
+    e2eTurnDurationMs: number | undefined;
     transitionTimeoutMs: number;
     roomCreationToken: string;
   }) => Promise<GameTransitionResult>;
@@ -145,6 +147,7 @@ export function createLobbyRoomClass(
             gameId,
             players: connected,
             e2eMode: deps.e2eMode,
+            e2eTurnDurationMs: deps.e2eTurnDurationMs,
             transitionTimeoutMs: deps.transitionTimeoutMs,
             roomCreationToken: deps.roomCreationToken,
           })
