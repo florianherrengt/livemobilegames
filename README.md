@@ -2,17 +2,20 @@
 
 Phone Party is a foundation for a phone-only multiplayer party-game platform. Every player uses their own phone browser; there is no shared television or host screen. The server is authoritative: it owns rooms, game state, timing, scoring, collisions, eliminations, and results. Clients send intentions and render locally.
 
-This repository contains the platform foundation and five installed games:
+This repository contains the platform foundation and nine installed games:
 **Capital Pin** (drop a pin where you think each capital city is; closest guess
-wins the round) and **Falling Platforms** (hop across platforms as the arena
-collapses under you; last survivor wins), plus **Flappy Race** (tap to flap
-through a shared obstacle course; the furthest bird wins each round) and
+wins the round), **Coin Rush** (swipe across shared roads, collect coins, and
+push rivals), **Falling Platforms** (hop across platforms as the arena
+collapses under you; last survivor wins), **Flappy Race** (tap to flap through
+a shared obstacle course; the furthest bird wins each round), **Golf Race**
+(take turns aiming golf shots through one shared course), **Kart Racing**
+(steer with one finger, swipe up to shoot, and win three three-lap races),
 **Live Drawing & Guessing** (one player draws a secret word while everyone else
-guesses it live) and
-**Memory Path** (memorize the route, race from memory, and do not step off the
-hidden path). The
-production game catalogue is a small, trusted, explicitly imported list — no
-test games or dynamic discovery ever appear there.
+guesses it live), **Memory Path** (memorize the route, race from memory, and do
+not step off the hidden path), and **Four-Sided Pong** (defend your edge and
+return the escalating balls). The production game catalogue is a small,
+trusted, explicitly imported list — no test games or dynamic discovery ever
+appear there.
 
 The room flow is: create a room first, share the room code, let other players
 join, let the host choose a game from the installed catalogue, and then start
@@ -45,6 +48,30 @@ Tap to flap, dodge shared obstacles, and let the furthest bird win each of five
 rounds. The server owns the course, physics, collisions, round winners, final
 scoreboard, and rematch.
 
+Coin Rush gives every player a token on one fixed 9x17 grid. Swipe to jump one
+tile, collect the 1-, 3-, and 5-point coins, dodge moving vehicles, and push
+rivals — even off the board. Three rounds decide the match, with coins and
+deaths as the tiebreakers.
+
+Golf Race is a five-round turn-based race with golf-style drag-and-release
+shots. Players aim in any direction, collide lightly with walls, obstacles and
+each other, fall into hazards, respawn with temporary protection, and cross
+invisible progress gates before the finish. Hazards expand each round, points
+are awarded by finishing position, and the server owns the course, physics,
+collisions, turn order, respawns, round transitions, finish order, and rematch.
+
+Kart Racing is a top-down arcade kart racer. Karts accelerate automatically;
+players steer by dragging one finger, swipe up to fire a single projectile,
+and collect crates for ammo. Every match plays three three-lap races with
+checkpoints, fall zones, respawns, race points, and match tie-breakers. The
+server owns the track, physics, collisions, checkpoints, crates, race results,
+and the final scoreboard.
+
+Four-Sided Pong gives every player a paddle defending one edge of a square
+arena. One ball starts the match and more are introduced over time; score when
+another player misses a ball you last touched, and the first to ten wins. Each
+player sees the arena rotated so their edge is at the bottom.
+
 Live Drawing & Guessing runs three rounds in which every player draws three
 secret words. The drawer sees the word privately and draws live; guessers see
 the category, a progressive letter pattern, and the drawing, and the first
@@ -59,10 +86,11 @@ seconds, three rounds decide the match, and tied leaders settle it in sudden
 death. The server owns the route geometry, movement, falls, flash timing,
 progress, round wins, and final winner.
 
-Capital Pin, Falling Platforms, Flappy Race, and Memory Path stay locked while
-running: a browser refresh mid-game cannot rejoin them; reconnection within the
-grace window uses the Colyseus token. Live Drawing & Guessing deliberately
-unlocks so late joiners can spectate.
+Capital Pin, Coin Rush, Falling Platforms, Flappy Race, Golf Race, Kart
+Racing, Memory Path, and Four-Sided Pong stay locked while running: a browser
+refresh mid-game cannot rejoin them; reconnection within the grace window uses
+the Colyseus token. Live Drawing & Guessing deliberately unlocks so late
+joiners can spectate.
 
 ## Architecture
 
@@ -218,7 +246,7 @@ matchmaking ownership and sticky WebSockets.
 
 ```text
 apps/server/          Hono API, Colyseus server, room infrastructure, game rooms
-apps/web/             React phone UI, Capital Pin map, Falling Platforms arena, Flappy Race canvas, Live Drawing canvas, Memory Path canvas
+apps/web/             React phone UI, Capital Pin map, Coin Rush grid, Falling Platforms arena, Flappy Race canvas, Golf Race course, Kart Racing canvas, Live Drawing canvas, Memory Path canvas, Four-Sided Pong arena
 packages/protocol/    Shared Zod schemas, Colyseus state, and inferred types
 docs/                 Architecture and game-authoring guides
 ```

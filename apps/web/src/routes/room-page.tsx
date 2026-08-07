@@ -1,11 +1,15 @@
 import { Box, Button, Container, Paper, Stack, Typography } from "@mui/material";
 import {
   type CapitalPinState,
+  type CoinRushState,
   type FallingPlatformsState,
   type FlappyRaceState,
+  type GolfRaceState,
+  type KartRacingState,
   type LiveDrawingGuessingState,
   type MemoryPathState,
   normalizeRoomCode,
+  type PongState,
   roomCodeSchema,
 } from "@phone-party/protocol";
 import { lazy, Suspense } from "react";
@@ -25,6 +29,12 @@ const CapitalPinGameView = lazy(() =>
   })),
 );
 
+const CoinRushGameView = lazy(() =>
+  import("../games/coin-rush/game-view.js").then((module) => ({
+    default: module.CoinRushGameView,
+  })),
+);
+
 const FallingPlatformsGameView = lazy(() =>
   import("../games/falling-platforms/game-view.js").then((module) => ({
     default: module.FallingPlatformsGameView,
@@ -37,6 +47,18 @@ const FlappyRaceGameView = lazy(() =>
   })),
 );
 
+const GolfRaceGameView = lazy(() =>
+  import("../games/golf-race/game-view.js").then((module) => ({
+    default: module.GolfRaceGameView,
+  })),
+);
+
+const KartRacingGameView = lazy(() =>
+  import("../games/kart-racing/game-view.js").then((module) => ({
+    default: module.KartRacingGameView,
+  })),
+);
+
 const LiveDrawingGuessingGameView = lazy(() =>
   import("../games/live-drawing-guessing/game-view.js").then((module) => ({
     default: module.LiveDrawingGuessingGameView,
@@ -46,6 +68,12 @@ const LiveDrawingGuessingGameView = lazy(() =>
 const MemoryPathGameView = lazy(() =>
   import("../games/memory-path/game-view.js").then((module) => ({
     default: module.MemoryPathGameView,
+  })),
+);
+
+const PongGameView = lazy(() =>
+  import("../games/pong/game-view.js").then((module) => ({
+    default: module.PongGameView,
   })),
 );
 
@@ -122,6 +150,26 @@ export function RoomPage() {
     );
   }
 
+  if (isCoinRushState(roomState)) {
+    return (
+      <Box sx={{ position: "relative", height: "100dvh" }}>
+        <Suspense
+          fallback={
+            <Paper sx={{ p: 2.25, m: 2 }}>
+              <Typography>Loading game…</Typography>
+            </Paper>
+          }
+        >
+          <CoinRushGameView
+            connection={connection}
+            state={roomState}
+            selfSessionId={selfSessionId}
+          />
+        </Suspense>
+      </Box>
+    );
+  }
+
   if (isFallingPlatformsState(roomState)) {
     return (
       <Box sx={{ position: "relative", height: "100dvh" }}>
@@ -153,6 +201,46 @@ export function RoomPage() {
           }
         >
           <FlappyRaceGameView
+            connection={connection}
+            state={roomState}
+            selfSessionId={selfSessionId}
+          />
+        </Suspense>
+      </Box>
+    );
+  }
+
+  if (isGolfRaceState(roomState)) {
+    return (
+      <Box sx={{ position: "relative", height: "100dvh" }}>
+        <Suspense
+          fallback={
+            <Paper sx={{ p: 2.25, m: 2 }}>
+              <Typography>Loading game…</Typography>
+            </Paper>
+          }
+        >
+          <GolfRaceGameView
+            connection={connection}
+            state={roomState}
+            selfSessionId={selfSessionId}
+          />
+        </Suspense>
+      </Box>
+    );
+  }
+
+  if (isKartRacingState(roomState)) {
+    return (
+      <Box sx={{ position: "relative", height: "100dvh" }}>
+        <Suspense
+          fallback={
+            <Paper sx={{ p: 2.25, m: 2 }}>
+              <Typography>Loading game…</Typography>
+            </Paper>
+          }
+        >
+          <KartRacingGameView
             connection={connection}
             state={roomState}
             selfSessionId={selfSessionId}
@@ -202,6 +290,22 @@ export function RoomPage() {
     );
   }
 
+  if (isPongState(roomState)) {
+    return (
+      <Box sx={{ position: "relative", height: "100dvh" }}>
+        <Suspense
+          fallback={
+            <Paper sx={{ p: 2.25, m: 2 }}>
+              <Typography>Loading game…</Typography>
+            </Paper>
+          }
+        >
+          <PongGameView connection={connection} state={roomState} selfSessionId={selfSessionId} />
+        </Suspense>
+      </Box>
+    );
+  }
+
   return (
     <Container component="main" maxWidth="sm" sx={{ py: { xs: 2.5, sm: 4 } }}>
       <Stack spacing={2}>
@@ -244,6 +348,10 @@ function isCapitalPinState(state: RoomState): state is CapitalPinState {
   return "phase" in state && "currentCapitalName" in state;
 }
 
+function isCoinRushState(state: RoomState): state is CoinRushState {
+  return "phase" in state && "coins" in state && "rows" in state;
+}
+
 function isFallingPlatformsState(state: RoomState): state is FallingPlatformsState {
   return "phase" in state && "platforms" in state;
 }
@@ -252,10 +360,22 @@ function isFlappyRaceState(state: RoomState): state is FlappyRaceState {
   return "phase" in state && "obstacleOpenings" in state;
 }
 
+function isGolfRaceState(state: RoomState): state is GolfRaceState {
+  return "phase" in state && "currentTurnSessionId" in state && "turnOrder" in state;
+}
+
+function isKartRacingState(state: RoomState): state is KartRacingState {
+  return "phase" in state && "crates" in state && "raceFinishOrder" in state;
+}
+
 function isLiveDrawingGuessingState(state: RoomState): state is LiveDrawingGuessingState {
   return "phase" in state && "letterPattern" in state && "strokes" in state;
 }
 
 function isMemoryPathState(state: RoomState): state is MemoryPathState {
   return "phase" in state && "routePoints" in state;
+}
+
+function isPongState(state: RoomState): state is PongState {
+  return "phase" in state && "balls" in state && "desiredBallCount" in state;
 }

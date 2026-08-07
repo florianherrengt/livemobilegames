@@ -1,10 +1,11 @@
 # Adding a game
 
-The production catalogue contains five games, Capital Pin, Falling Platforms,
-Flappy Race, Live Drawing & Guessing, and Memory Path. This guide defines the boundaries every additional game must
-satisfy; it does not imply that generic lifecycle transitions or client
-rendering infrastructure exist beyond the narrow, feature-local transitions
-the five installed games established.
+The production catalogue contains nine games, Capital Pin, Coin Rush, Falling
+Platforms, Flappy Race, Golf Race, Kart Racing, Live Drawing & Guessing, Memory
+Path, and Four-Sided Pong. This guide defines the boundaries every additional
+game must satisfy; it does not imply that generic lifecycle transitions or
+client rendering infrastructure exist beyond the narrow, feature-local
+transitions the nine installed games established.
 
 Read these first:
 
@@ -135,9 +136,9 @@ Registration makes the game trusted and exposes its public manifest at
 ## 4. Implement the lobby-to-game transition
 
 `select_game` still only stores a validated game ID. A new game must define the
-smallest complete transition from lobby to play. Capital Pin, Falling
-Platforms, Flappy Race, Live Drawing & Guessing, and Memory Path are the
-reference implementations: the lobby creates
+smallest complete transition from lobby to play. Capital Pin, Coin Rush,
+Falling Platforms, Flappy Race, Golf Race, Kart Racing, Live Drawing & Guessing,
+Memory Path, and Four-Sided Pong are the reference implementations: the lobby creates
 the registered game room with a trusted roster, reserves one seat per connected player, sends
 each client a `room:transition` reservation, repoints the room-code directory,
 and then disconnects itself. The game room locks after its reservations are
@@ -162,7 +163,7 @@ That change must address, in one documented contract:
 
 Prefer the narrowest design for the actual game. Do not build a generic
 lifecycle state machine until more implemented games prove the common
-transitions; two feature-local transitions are not yet that evidence.
+transitions; the feature-local transitions are not yet that evidence.
 
 Update the [room lifecycle contract](../apps/server/src/rooms/docs/room-lifecycle.md)
 as part of this work.

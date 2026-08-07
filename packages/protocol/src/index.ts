@@ -1,11 +1,17 @@
 export type { ISeatReservation } from "@colyseus/shared-types";
 export * from "./capital-pin.js";
+export * from "./coin-rush.js";
 export * from "./errors.js";
 export * from "./falling-platforms.js";
 export * from "./flappy-race.js";
 export * from "./games.js";
+export * from "./golf.js";
+export * from "./golf-course.js";
+export * from "./kart-racing.js";
+export * from "./kart-racing-track.js";
 export * from "./live-drawing-guessing.js";
 export * from "./lobby.js";
 export * from "./memory-path.js";
+export * from "./pong.js";
 export * from "./rooms.js";
 export * from "./session.js";

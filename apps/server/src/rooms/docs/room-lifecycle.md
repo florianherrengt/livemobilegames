@@ -2,9 +2,10 @@
 
 Rooms are ephemeral, server-authoritative Colyseus rooms addressed to people by
 a six-character code. The platform creates a lobby before a game is chosen, and
-the installed Capital Pin, Falling Platforms, Flappy Race, Live Drawing &
-Guessing, and Memory Path games transition the whole lobby into a registered
-game room when the host starts them.
+the installed Capital Pin, Coin Rush, Falling Platforms, Flappy Race, Golf
+Race, Kart Racing, Live Drawing & Guessing, Memory Path, and Four-Sided Pong
+games transition the whole lobby into a registered game room when the host
+starts them.
 
 ## Ownership
 
@@ -218,17 +219,23 @@ Each installed game owns the transition into its own room and then its full
 loop inside that room:
 
 - Capital Pin: `lobby -> round -> round-results -> finished -> lobby`.
+- Coin Rush: `lobby -> countdown -> playing -> round-result -> finished -> lobby`.
 - Falling Platforms: `lobby -> countdown -> playing -> results -> lobby`.
 - Flappy Race: `lobby -> countdown -> running -> round-result -> finished -> lobby`.
+- Golf Race: `lobby -> countdown -> aiming -> simulating -> round-result -> finished -> lobby`.
+- Kart Racing: `lobby -> countdown -> racing -> race-result -> finished -> lobby`.
 - Live Drawing & Guessing: `lobby -> preparing -> drawing -> result -> round-summary -> finished`.
 - Memory Path: `lobby -> preparing -> preview -> racing -> round-result -> match-result -> lobby`.
+- Four-Sided Pong: `lobby -> countdown -> running -> finished -> lobby`.
 
 The games start themselves when the roster is complete, so the host starts
 once in the platform lobby. `play_again` is the host-only convention the games
 use: it returns the room to its lobby and starts the next game immediately when
 everyone is connected. Falling Platforms resets the round counter for a fresh
 match and draws a new server-side seed for every round, while Capital Pin keeps
-its ten-round match and Flappy Race keeps its five-round match until
+its ten-round match, Flappy Race keeps its five-round match, Coin Rush keeps
+its three-round match, Golf Race keeps its five-round match, Kart Racing keeps
+its three three-lap races, and Four-Sided Pong keeps its race to ten until
 `play_again` resets them; Memory Path plays three normal rounds plus sudden
 death when leaders are tied, and `play_again` resets it for a fresh match.
 

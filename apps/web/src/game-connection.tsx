@@ -1,12 +1,16 @@
 import type { Client, Room } from "@colyseus/sdk";
 import {
   CapitalPinState,
+  CoinRushState,
   FallingPlatformsState,
   FlappyRaceState,
+  GolfRaceState,
   type ISeatReservation,
+  KartRacingState,
   LiveDrawingGuessingState,
   LobbyRoomState,
   MemoryPathState,
+  PongState,
   ROOM_MESSAGE_TYPES,
   roomTransitionSchema,
 } from "@phone-party/protocol";
@@ -26,10 +30,14 @@ import { createColyseusClient } from "./multiplayer.js";
 export type RoomState =
   | LobbyRoomState
   | CapitalPinState
+  | CoinRushState
   | FallingPlatformsState
   | FlappyRaceState
+  | GolfRaceState
+  | KartRacingState
   | LiveDrawingGuessingState
-  | MemoryPathState;
+  | MemoryPathState
+  | PongState;
 type RoomStateSchema = new () => RoomState;
 
 /**
@@ -38,10 +46,14 @@ type RoomStateSchema = new () => RoomState;
  */
 const gameStateSchemas: Record<string, RoomStateSchema> = {
   "capital-pin": CapitalPinState,
+  "coin-rush": CoinRushState,
   "falling-platforms": FallingPlatformsState,
   "flappy-race": FlappyRaceState,
+  golf: GolfRaceState,
+  "kart-racing": KartRacingState,
   "live-drawing-guessing": LiveDrawingGuessingState,
   "memory-path": MemoryPathState,
+  pong: PongState,
 };
 
 /**

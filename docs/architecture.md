@@ -5,10 +5,11 @@ browser; there is no shared display or privileged host process. One Node.js
 process owns HTTP, matchmaking, WebSockets, active rooms, and authoritative game
 simulation.
 
-This document describes the implemented platform foundation and the five
-installed games, Capital Pin, Falling Platforms, Flappy Race, Live Drawing &
-Guessing, and Memory Path. The catalogue is no longer empty, and the lobby
-transitions into a registered game room when the host starts a game.
+This document describes the implemented platform foundation and the nine
+installed games, Capital Pin, Coin Rush, Falling Platforms, Flappy Race, Golf
+Race, Kart Racing, Live Drawing & Guessing, Memory Path, and Four-Sided Pong.
+The catalogue is no longer empty, and the lobby transitions into a registered
+game room when the host starts a game.
 
 ## System topology
 
@@ -303,14 +304,18 @@ operating cost, and consistency work without improving current behavior.
 
 ## Implemented game lifecycles
 
-The five installed games own their own transitions and lifecycles:
+The nine installed games own their own transitions and lifecycles:
 
 ```text
 platform lobby -> Capital Pin: round -> round-results -> finished -> lobby
+platform lobby -> Coin Rush: countdown -> playing -> round-result -> finished -> lobby
 platform lobby -> Falling Platforms: countdown -> playing -> results -> lobby
 platform lobby -> Flappy Race: countdown -> running -> round-result -> finished -> lobby
+platform lobby -> Golf Race: countdown -> aiming -> simulating -> round-result -> finished -> lobby
+platform lobby -> Kart Racing: countdown -> racing -> race-result -> finished -> lobby
 platform lobby -> Live Drawing & Guessing: preparing -> drawing -> result -> round-summary -> finished
 platform lobby -> Memory Path: preparing -> preview -> racing -> round-result -> match-result -> lobby
+platform lobby -> Four-Sided Pong: countdown -> running -> finished -> lobby
 ```
 
 The host selects a game in the platform lobby; `start_game` creates the
@@ -324,20 +329,29 @@ The platform continues to own identity, room codes, membership, reservations,
 reconnection, and cleanup.
 
 Capital Pin owns its manifest, command schema, synchronized state, ten-round
-scoring, map renderer, and tests; Falling Platforms owns its manifest, hop
-command, synchronized arena state, seeded collapse simulation, swipe renderer,
-and tests; Flappy Race owns its manifest, flap command, synchronized course
-state, seeded course generation, physics/collision engine, canvas renderer, and
-tests; Live Drawing & Guessing owns its manifest, stroke and guess commands,
-synchronized drawing and turn state, private drawer briefings, word and reveal
-rules, canvas renderer, and tests. Unlike the other games, its room unlocks
-while play runs so players who join by code can spectate and participate in the
-next game; seat reservations still require the process-local token through
-`onAuth`; Memory Path owns its manifest, movement command, synchronized route
-state, curated path templates, authoritative movement/fall/flash engine,
-canvas renderer, and tests. `play_again` is the host-only convention the games
-use to return to a lobby and start the next game automatically when everyone is
-connected. The
+scoring, map renderer, and tests; Coin Rush owns its manifest, move command,
+synchronized grid state, seeded map generation, vehicle collision, simultaneous
+push resolution, coin spawning, scoring, swipe renderer, and tests; Falling
+Platforms owns its manifest, hop command, synchronized arena state, seeded
+collapse simulation, swipe renderer, and tests; Flappy Race owns its manifest,
+flap command, synchronized course state, seeded course generation,
+physics/collision engine, canvas renderer, and tests; Golf Race owns its
+manifest, shot command, synchronized course and turn state, physics engine,
+turn order, hazards, respawns, round scoring, course renderer, and tests; Kart
+Racing owns its manifest, steer/shoot commands, synchronized track state,
+three-race scoring with tie-breakers, canvas renderer, and tests; Live Drawing
+& Guessing owns its manifest, stroke and guess commands, synchronized drawing
+and turn state, private drawer briefings, word and reveal rules, canvas
+renderer, and tests. Unlike the other games, its room unlocks while play runs
+so players who join by code can spectate and participate in the next game; seat
+reservations still require the process-local token through `onAuth`; Memory
+Path owns its manifest, movement command, synchronized route state, curated
+path templates, authoritative movement/fall/flash engine, canvas renderer, and
+tests; Four-Sided Pong owns its manifest, paddle command, synchronized arena
+state, seeded layouts and ball launches, authoritative physics/scoring engine,
+canvas renderer with per-player rotation, and tests. `play_again` is the
+host-only convention the games use to return to a lobby and start the next game
+automatically when everyone is connected. The
 transitions and lifecycles stay feature-local: no generic base room, transition
 state machine, or lifecycle machinery has been extracted for additional games.
 
