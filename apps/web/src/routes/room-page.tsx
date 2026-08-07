@@ -4,6 +4,7 @@ import {
   type FallingPlatformsState,
   type FlappyRaceState,
   type LiveDrawingGuessingState,
+  type MemoryPathState,
   normalizeRoomCode,
   roomCodeSchema,
 } from "@phone-party/protocol";
@@ -39,6 +40,12 @@ const FlappyRaceGameView = lazy(() =>
 const LiveDrawingGuessingGameView = lazy(() =>
   import("../games/live-drawing-guessing/game-view.js").then((module) => ({
     default: module.LiveDrawingGuessingGameView,
+  })),
+);
+
+const MemoryPathGameView = lazy(() =>
+  import("../games/memory-path/game-view.js").then((module) => ({
+    default: module.MemoryPathGameView,
   })),
 );
 
@@ -175,6 +182,26 @@ export function RoomPage() {
     );
   }
 
+  if (isMemoryPathState(roomState)) {
+    return (
+      <Box sx={{ position: "relative", height: "100dvh" }}>
+        <Suspense
+          fallback={
+            <Paper sx={{ p: 2.25, m: 2 }}>
+              <Typography>Loading game…</Typography>
+            </Paper>
+          }
+        >
+          <MemoryPathGameView
+            connection={connection}
+            state={roomState}
+            selfSessionId={selfSessionId}
+          />
+        </Suspense>
+      </Box>
+    );
+  }
+
   return (
     <Container component="main" maxWidth="sm" sx={{ py: { xs: 2.5, sm: 4 } }}>
       <Stack spacing={2}>
@@ -227,4 +254,8 @@ function isFlappyRaceState(state: RoomState): state is FlappyRaceState {
 
 function isLiveDrawingGuessingState(state: RoomState): state is LiveDrawingGuessingState {
   return "phase" in state && "letterPattern" in state && "strokes" in state;
+}
+
+function isMemoryPathState(state: RoomState): state is MemoryPathState {
+  return "phase" in state && "routePoints" in state;
 }

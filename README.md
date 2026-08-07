@@ -2,13 +2,15 @@
 
 Phone Party is a foundation for a phone-only multiplayer party-game platform. Every player uses their own phone browser; there is no shared television or host screen. The server is authoritative: it owns rooms, game state, timing, scoring, collisions, eliminations, and results. Clients send intentions and render locally.
 
-This repository contains the platform foundation and four installed games:
+This repository contains the platform foundation and five installed games:
 **Capital Pin** (drop a pin where you think each capital city is; closest guess
 wins the round) and **Falling Platforms** (hop across platforms as the arena
 collapses under you; last survivor wins), plus **Flappy Race** (tap to flap
 through a shared obstacle course; the furthest bird wins each round) and
 **Live Drawing & Guessing** (one player draws a secret word while everyone else
-guesses it live). The
+guesses it live) and
+**Memory Path** (memorize the route, race from memory, and do not step off the
+hidden path). The
 production game catalogue is a small, trusted, explicitly imported list — no
 test games or dynamic discovery ever appear there.
 
@@ -50,10 +52,17 @@ exact correct guess scores a point for both players. The room unlocks during
 play so late joiners can spectate and join the next game, while the server
 keeps guesses private and owns words, reveals, timing, scoring, and winners.
 
-Capital Pin, Falling Platforms, and Flappy Race stay locked while running: a
-browser refresh mid-game cannot rejoin them; reconnection within the grace
-window uses the Colyseus token. Live Drawing & Guessing deliberately unlocks so
-late joiners can spectate.
+Memory Path shows every player the same full course for five seconds, then
+removes it. Race from memory with a joystick; leave the hidden route and you
+return to the start. The path and opponents flash back into view every five
+seconds, three rounds decide the match, and tied leaders settle it in sudden
+death. The server owns the route geometry, movement, falls, flash timing,
+progress, round wins, and final winner.
+
+Capital Pin, Falling Platforms, Flappy Race, and Memory Path stay locked while
+running: a browser refresh mid-game cannot rejoin them; reconnection within the
+grace window uses the Colyseus token. Live Drawing & Guessing deliberately
+unlocks so late joiners can spectate.
 
 ## Architecture
 
@@ -209,7 +218,7 @@ matchmaking ownership and sticky WebSockets.
 
 ```text
 apps/server/          Hono API, Colyseus server, room infrastructure, game rooms
-apps/web/             React phone UI, Capital Pin map, Falling Platforms arena, Flappy Race canvas, Live Drawing canvas
+apps/web/             React phone UI, Capital Pin map, Falling Platforms arena, Flappy Race canvas, Live Drawing canvas, Memory Path canvas
 packages/protocol/    Shared Zod schemas, Colyseus state, and inferred types
 docs/                 Architecture and game-authoring guides
 ```

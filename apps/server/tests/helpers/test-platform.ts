@@ -32,9 +32,9 @@ export async function createTestPlatform(
   games: GameRegistry = createGameRegistry([testGameDefinition]),
   config: AppConfig = createTestConfig(),
   roomCreationToken: string = randomBytes(32).toString("hex"),
-  testPort = Number(process.env.TEST_SERVER_PORT ?? 2568),
+  testPort = Number(process.env.TEST_SERVER_PORT ?? 0),
 ): Promise<TestPlatform> {
-  if (!Number.isInteger(testPort) || testPort < 1 || testPort > 65535) {
+  if (!Number.isInteger(testPort) || testPort < 0 || testPort > 65535) {
     throw new Error(`Invalid TEST_SERVER_PORT: ${testPort}`);
   }
   const platform = await createPlatformServer({
@@ -55,9 +55,16 @@ export async function createTestPlatform(
     (async () => {
       // @colyseus/testing's boot() always listens on its hardcoded default
       // port when given a Server instance. Listening directly keeps the port
-      // overridable so multiple worktrees can run integration suites on one
-      // machine without colliding.
-      await platform.gameServer.listen(testPort);
+      // overridable (0 = OS-assigned) so multiple worktrees can run
+      // integration suites on one machine without colliding.
+      await platform.gameServer.listen(testPort, "127.0.0.1");
+      if (testPort === 0) {
+        const address = platform.httpServer.address();
+        if (address === null || typeof address === "string") {
+          throw new Error("Test server did not bind a TCP port");
+        }
+        (platform.gameServer as unknown as { port: number }).port = address.port;
+      }
       return new ColyseusTestServer(platform.gameServer);
     })(),
     listenError,

@@ -5,10 +5,10 @@ browser; there is no shared display or privileged host process. One Node.js
 process owns HTTP, matchmaking, WebSockets, active rooms, and authoritative game
 simulation.
 
-This document describes the implemented platform foundation and the four
-installed games, Capital Pin, Falling Platforms, Flappy Race, and Live Drawing
-& Guessing. The catalogue is no longer empty, and the lobby transitions into a
-registered game room when the host starts a game.
+This document describes the implemented platform foundation and the five
+installed games, Capital Pin, Falling Platforms, Flappy Race, Live Drawing &
+Guessing, and Memory Path. The catalogue is no longer empty, and the lobby
+transitions into a registered game room when the host starts a game.
 
 ## System topology
 
@@ -303,13 +303,14 @@ operating cost, and consistency work without improving current behavior.
 
 ## Implemented game lifecycles
 
-The four installed games own their own transitions and lifecycles:
+The five installed games own their own transitions and lifecycles:
 
 ```text
 platform lobby -> Capital Pin: round -> round-results -> finished -> lobby
 platform lobby -> Falling Platforms: countdown -> playing -> results -> lobby
 platform lobby -> Flappy Race: countdown -> running -> round-result -> finished -> lobby
 platform lobby -> Live Drawing & Guessing: preparing -> drawing -> result -> round-summary -> finished
+platform lobby -> Memory Path: preparing -> preview -> racing -> round-result -> match-result -> lobby
 ```
 
 The host selects a game in the platform lobby; `start_game` creates the
@@ -332,8 +333,11 @@ synchronized drawing and turn state, private drawer briefings, word and reveal
 rules, canvas renderer, and tests. Unlike the other games, its room unlocks
 while play runs so players who join by code can spectate and participate in the
 next game; seat reservations still require the process-local token through
-`onAuth`. `play_again` is the host-only convention the games use to return to a
-lobby and start the next game automatically when everyone is connected. The
+`onAuth`; Memory Path owns its manifest, movement command, synchronized route
+state, curated path templates, authoritative movement/fall/flash engine,
+canvas renderer, and tests. `play_again` is the host-only convention the games
+use to return to a lobby and start the next game automatically when everyone is
+connected. The
 transitions and lifecycles stay feature-local: no generic base room, transition
 state machine, or lifecycle machinery has been extracted for additional games.
 

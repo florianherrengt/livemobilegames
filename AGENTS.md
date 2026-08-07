@@ -56,18 +56,20 @@ on an ordinary Linux host.
 ## Current product state
 
 - The production catalogue explicitly registers Capital Pin, Falling Platforms,
-  Flappy Race, and Live Drawing & Guessing. Test game definitions must never be registered in
+  Flappy Race, Live Drawing & Guessing, and Memory Path. Test game definitions
+  must never be registered in
   `production-games.ts` or exposed by the production API.
 - Rooms start as platform lobbies. The host selects a registry-validated game
   and `start_game` moves the trusted roster into that game's locked Colyseus
-  room. All four games implement authoritative gameplay, results, and rematch
+  room. All five games implement authoritative gameplay, results, and rematch
   or lobby-return behavior.
 - Active rooms, room codes, memberships, and reconnection state are ephemeral.
   A process restart or deployment ends them. A lobby refresh can join again
-  through the room URL; a running Capital Pin, Falling Platforms, or Flappy Race
-  game is locked, so mid-game continuity relies on Colyseus reconnection within
-  its grace window rather than page refresh. Live Drawing & Guessing unlocks
-  during play so late joiners can spectate and join the next game.
+  through the room URL; a running Capital Pin, Falling Platforms, Flappy Race,
+  or Memory Path game is locked, so mid-game continuity relies on Colyseus
+  reconnection within its grace window rather than page refresh. Live Drawing &
+  Guessing unlocks during play so late joiners can spectate and join the next
+  game.
 - SQLite is the chosen future durable store, but the driver and schema remain
   deliberately undecided until the first durable fact is requested.
 - Production runs commit `main` through Coolify on helium. Container port

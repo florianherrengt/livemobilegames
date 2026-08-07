@@ -3,6 +3,7 @@ import { createFallingPlatformsGameDefinition } from "./falling-platforms/defini
 import { createFlappyRaceGameDefinition } from "./flappy-race/definition.js";
 import type { GameDefinition } from "./game-definition.js";
 import { createLiveDrawingGuessingGameDefinition } from "./live-drawing-guessing/definition.js";
+import { createMemoryPathGameDefinition } from "./memory-path/definition.js";
 
 export function createProductionGames(roomCreationToken: string): readonly GameDefinition[] {
   return [
@@ -10,5 +11,6 @@ export function createProductionGames(roomCreationToken: string): readonly GameD
     createFallingPlatformsGameDefinition(roomCreationToken),
     createFlappyRaceGameDefinition(roomCreationToken),
     createLiveDrawingGuessingGameDefinition(roomCreationToken),
+    createMemoryPathGameDefinition(roomCreationToken),
   ];
 }

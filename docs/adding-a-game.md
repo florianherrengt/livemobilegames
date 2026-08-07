@@ -1,10 +1,10 @@
 # Adding a game
 
-The production catalogue contains three games, Capital Pin, Falling Platforms,
-and Flappy Race. This guide defines the boundaries every additional game must
+The production catalogue contains five games, Capital Pin, Falling Platforms,
+Flappy Race, Live Drawing & Guessing, and Memory Path. This guide defines the boundaries every additional game must
 satisfy; it does not imply that generic lifecycle transitions or client
 rendering infrastructure exist beyond the narrow, feature-local transitions
-the three installed games established.
+the five installed games established.
 
 Read these first:
 
@@ -136,7 +136,8 @@ Registration makes the game trusted and exposes its public manifest at
 
 `select_game` still only stores a validated game ID. A new game must define the
 smallest complete transition from lobby to play. Capital Pin, Falling
-Platforms, and Flappy Race are the reference implementations: the lobby creates
+Platforms, Flappy Race, Live Drawing & Guessing, and Memory Path are the
+reference implementations: the lobby creates
 the registered game room with a trusted roster, reserves one seat per connected player, sends
 each client a `room:transition` reservation, repoints the room-code directory,
 and then disconnects itself. The game room locks after its reservations are

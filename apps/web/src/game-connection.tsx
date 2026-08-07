@@ -6,6 +6,7 @@ import {
   type ISeatReservation,
   LiveDrawingGuessingState,
   LobbyRoomState,
+  MemoryPathState,
   ROOM_MESSAGE_TYPES,
   roomTransitionSchema,
 } from "@phone-party/protocol";
@@ -27,7 +28,8 @@ export type RoomState =
   | CapitalPinState
   | FallingPlatformsState
   | FlappyRaceState
-  | LiveDrawingGuessingState;
+  | LiveDrawingGuessingState
+  | MemoryPathState;
 type RoomStateSchema = new () => RoomState;
 
 /**
@@ -39,6 +41,7 @@ const gameStateSchemas: Record<string, RoomStateSchema> = {
   "falling-platforms": FallingPlatformsState,
   "flappy-race": FlappyRaceState,
   "live-drawing-guessing": LiveDrawingGuessingState,
+  "memory-path": MemoryPathState,
 };
 
 /**
@@ -49,6 +52,7 @@ const gameStateSchemas: Record<string, RoomStateSchema> = {
 const roomTypeStateSchemas: Record<string, RoomStateSchema> = {
   __platform_lobby: LobbyRoomState,
   "live-drawing-guessing-room": LiveDrawingGuessingState,
+  "memory-path-room": MemoryPathState,
 };
 
 export type RoomConnection = {
