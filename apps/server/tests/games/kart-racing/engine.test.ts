@@ -298,7 +298,7 @@ describe("Kart Racing engine", () => {
     expect(runtime.startingGrid).toEqual(["session-2", "session-1", "session-0"]);
   });
 
-  it("stops karts at outer walls and reduces their speed", () => {
+  it("stops karts at outer walls, reduces speed, and does not bounce them", () => {
     const runtime = createTestRuntime(2);
     const alice = runtime.players.get("session-0");
     if (!alice) {
@@ -311,11 +311,14 @@ describe("Kart Racing engine", () => {
     alice.speed = 300;
     alice.targetSteering = 0;
     advance(runtime, START_NOW, START_NOW + 300);
-    expect(alice.x).toBeLessThanOrEqual(1600);
+    expect(alice.x).toBeGreaterThan(1625);
+    expect(alice.x).toBeLessThanOrEqual(1660);
     expect(alice.speed).toBeLessThan(300);
+    // The kart keeps its heading into the wall instead of being reflected.
+    expect(alice.heading).toBe(0);
   });
 
-  it("pushes karts out of static obstacles and slows them", () => {
+  it("pushes karts out of static obstacles, slows them, and does not bounce them", () => {
     const runtime = createTestRuntime(2);
     const alice = runtime.players.get("session-0");
     if (!alice) {
@@ -330,6 +333,7 @@ describe("Kart Racing engine", () => {
     advance(runtime, START_NOW, START_NOW + 300);
     expect(alice.x).toBeGreaterThanOrEqual(1520);
     expect(alice.speed).toBeLessThan(300);
+    expect(alice.heading).toBe(Math.PI);
   });
 
   it("shows the wrong-way warning after driving against the track direction", () => {

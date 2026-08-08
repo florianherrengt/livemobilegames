@@ -82,6 +82,8 @@ describe("Kart Racing protocol", () => {
   it("defines a closed circuit whose grid, crates, and checkpoints are on the road", () => {
     const track = KART_RACING_TRACK;
     expect(track.centerline.length).toBeGreaterThanOrEqual(8);
+    // The road stays wide enough for forgiving steering on phone screens.
+    expect(track.roadHalfWidth).toBeGreaterThanOrEqual(120);
     expect(track.checkpointIndexes).toHaveLength(5);
     expect(track.gridPositions).toHaveLength(8);
     for (const position of track.gridPositions) {
