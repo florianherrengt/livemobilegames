@@ -394,6 +394,8 @@ export function ArenaView({
         data-testid="coin-rush-arena"
         data-phase={state.phase}
         data-round={state.roundNumber}
+        data-self-session={selfSessionId}
+        data-local-name={local?.name ?? ""}
         data-x={local?.x ?? ""}
         data-y={local?.y ?? ""}
         data-alive={local?.alive ?? false}

@@ -9,6 +9,33 @@ async function openPhone(browser: Browser): Promise<Page> {
   });
   await context.addInitScript(() => {
     sessionStorage.setItem("memory-path-e2e-driver", "1");
+    const NativeWebSocket = window.WebSocket;
+    const sockets: WebSocket[] = [];
+    class TrackedWebSocket extends NativeWebSocket {
+      constructor(url: string | URL, protocols: string | string[] = []) {
+        super(url, protocols);
+        sockets.push(this);
+      }
+    }
+    Object.defineProperty(window, "WebSocket", { configurable: true, value: TrackedWebSocket });
+    const testWindow = window as typeof window & {
+      __dropPartySocket?: () => boolean;
+      __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+    };
+    testWindow.__dropPartySocket = () => {
+      const socket = [...sockets]
+        .reverse()
+        .find((candidate) => candidate.readyState === NativeWebSocket.OPEN);
+      if (socket === undefined) {
+        return false;
+      }
+      socket.close();
+      return true;
+    };
+    testWindow.__partySocketSnapshot = () => ({
+      count: sockets.length,
+      latestOpen: sockets.at(-1)?.readyState === NativeWebSocket.OPEN,
+    });
   });
   return context.newPage();
 }
@@ -187,6 +214,35 @@ async function waitForRoundResult(page: Page, round: number, timeout = 20_000): 
   return value.winners;
 }
 
+async function dropSocketAndObserveReconnect(page: Page): Promise<void> {
+  const beforeSocketCount = await page.evaluate(
+    () =>
+      (
+        window as typeof window & {
+          __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+        }
+      ).__partySocketSnapshot?.().count ?? 0,
+  );
+  const dropped = await page.evaluate(
+    () =>
+      (window as typeof window & { __dropPartySocket?: () => boolean }).__dropPartySocket?.() ??
+      false,
+  );
+  expect(dropped).toBe(true);
+  await page.waitForFunction(
+    (previousCount) => {
+      const snapshot = (
+        window as typeof window & {
+          __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+        }
+      ).__partySocketSnapshot?.();
+      return snapshot !== undefined && snapshot.count > previousCount && snapshot.latestOpen;
+    },
+    beforeSocketCount,
+    { timeout: 10_000 },
+  );
+}
+
 test("two phones play a deterministic full Memory Path match", async ({ browser }) => {
   test.setTimeout(120_000);
 
@@ -226,6 +282,14 @@ test("two phones play a deterministic full Memory Path match", async ({ browser 
   // Rounds 2-3: Alice finishes both; Bob idles.
   for (const round of [2, 3]) {
     await waitForRoundRace(alice, round);
+    await waitForRoundRace(bob, round);
+    if (round === 2) {
+      // Drop Bob's real game socket after Colyseus' minimum uptime, then
+      // verify the same independent phone rejoins as an active racer.
+      await dropSocketAndObserveReconnect(bob);
+      await expect(arena(bob)).toHaveAttribute("data-round", "2");
+      await expect(arena(bob)).toHaveAttribute("data-can-move", "true");
+    }
     await driveToFinish(alice, round);
     const winners = await waitForRoundResult(alice, round);
     expect(winners).toHaveLength(1);

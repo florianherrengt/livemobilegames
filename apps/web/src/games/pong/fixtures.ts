@@ -148,22 +148,19 @@ export function makePongState(
   return state;
 }
 
-export function makePongResult(options: { tie?: boolean } = {}): PongResultState {
+export function makePongResult(options: { bobScore?: number } = {}): PongResultState {
   const result = new PongResultState();
   result.winnerSessionIds.push("host-session");
-  if (options.tie) {
-    result.winnerSessionIds.push("bob-session");
-  }
   const alice = new PongLeaderboardEntryState();
   alice.sessionId = "host-session";
   alice.rank = 1;
-  alice.score = options.tie ? 10 : 10;
+  alice.score = 10;
   alice.label = "Alice";
   result.leaderboard.push(alice);
   const bob = new PongLeaderboardEntryState();
   bob.sessionId = "bob-session";
-  bob.rank = options.tie ? 1 : 2;
-  bob.score = options.tie ? 10 : 7;
+  bob.rank = 2;
+  bob.score = options.bobScore ?? 7;
   bob.label = "Bob";
   result.leaderboard.push(bob);
   return result;

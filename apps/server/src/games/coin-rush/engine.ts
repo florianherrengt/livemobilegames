@@ -111,6 +111,28 @@ export function prepareRound(runtime: CoinRushRuntime, now: number, roundNumber:
   runtime.roundWinnerSessionIds = [];
   runtime.pendingMoves.clear();
 
+  // Reset round-local state for every roster player, including anyone inside
+  // the reconnection grace window. Otherwise a player who misses this exact
+  // transition can return with the previous round's score, death animation,
+  // or movement flags and win the new round without earning its points.
+  for (const player of runtime.players.values()) {
+    player.alive = false;
+    player.respawning = false;
+    player.respawnEndsAt = 0;
+    player.moving = false;
+    player.push = false;
+    player.bouncing = false;
+    player.moveStartedAt = 0;
+    player.moveEndsAt = 0;
+    player.bounceStartedAt = 0;
+    player.bounceEndsAt = 0;
+    player.deathType = "";
+    player.diedAt = 0;
+    player.score = 0;
+    player.roundDeaths = 0;
+    player.suddenDeathEligible = false;
+  }
+
   const ordered = [...runtime.players.values()]
     .filter((player) => player.connected)
     .sort((a, b) => a.joinedOrder - b.joinedOrder);
@@ -135,16 +157,8 @@ export function prepareRound(runtime: CoinRushRuntime, now: number, roundNumber:
     player.bounceEndsAt = 0;
     player.deathType = "";
     player.diedAt = 0;
-    player.score = 0;
-    player.roundDeaths = 0;
     player.suddenDeathEligible = true;
   });
-  for (const player of runtime.players.values()) {
-    if (!player.connected) {
-      player.alive = false;
-      player.suddenDeathEligible = false;
-    }
-  }
 
   runtime.coins.clear();
   spawnInitialCoins(runtime, now);
@@ -447,6 +461,8 @@ export function returnToLobby(runtime: CoinRushRuntime): void {
     player.deaths = 0;
     player.roundDeaths = 0;
     player.suddenDeathEligible = true;
+    player.lastAcceptedSequence = 0;
+    player.seenSequences.clear();
   }
 }
 

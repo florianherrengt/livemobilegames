@@ -45,8 +45,8 @@ play again with a fresh seed.
 
 Flappy Race gives every player a bird on the same server-generated course.
 Tap to flap, dodge shared obstacles, and let the furthest bird win each of five
-rounds. The server owns the course, physics, collisions, round winners, final
-scoreboard, and rematch.
+rounds. Clearing the finite course completes the round. The server owns the
+course, physics, collisions, round winners, final scoreboard, and rematch.
 
 Coin Rush gives every player a token on one fixed 9x17 grid. Swipe to jump one
 tile, collect the 1-, 3-, and 5-point coins, dodge moving vehicles, and push
@@ -57,15 +57,17 @@ Golf Race is a five-round turn-based race with golf-style drag-and-release
 shots. Players aim in any direction, collide lightly with walls, obstacles and
 each other, fall into hazards, respawn with temporary protection, and cross
 invisible progress gates before the finish. Hazards expand each round, points
-are awarded by finishing position, and the server owns the course, physics,
+are awarded by finishing position, and a five-minute round deadline ranks any
+unfinished balls by course progress. The server owns the course, physics,
 collisions, turn order, respawns, round transitions, finish order, and rematch.
 
 Kart Racing is a top-down arcade kart racer. Karts accelerate automatically;
 players steer by dragging one finger, swipe up to fire a single projectile,
 and collect crates for ammo. Every match plays three three-lap races with
 checkpoints, fall zones, respawns, race points, and match tie-breakers. The
-server owns the track, physics, collisions, checkpoints, crates, race results,
-and the final scoreboard.
+three-minute race deadline is shortened after the first finisher; unfinished
+karts are ranked by course progress. The server owns the track, physics,
+collisions, checkpoints, crates, race results, and the final scoreboard.
 
 Four-Sided Pong gives every player a paddle defending one edge of a square
 arena. One ball starts the match and more are introduced over time; score when

@@ -8,6 +8,35 @@ async function openPhone(browser: Browser): Promise<Page> {
     hasTouch: true,
     deviceScaleFactor: 2,
   });
+  await context.addInitScript(() => {
+    const NativeWebSocket = window.WebSocket;
+    const sockets: WebSocket[] = [];
+    class TrackedWebSocket extends NativeWebSocket {
+      constructor(url: string | URL, protocols: string | string[] = []) {
+        super(url, protocols);
+        sockets.push(this);
+      }
+    }
+    Object.defineProperty(window, "WebSocket", { configurable: true, value: TrackedWebSocket });
+    const testWindow = window as typeof window & {
+      __dropPartySocket?: () => boolean;
+      __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+    };
+    testWindow.__dropPartySocket = () => {
+      const socket = [...sockets]
+        .reverse()
+        .find((candidate) => candidate.readyState === NativeWebSocket.OPEN);
+      if (socket === undefined) {
+        return false;
+      }
+      socket.close();
+      return true;
+    };
+    testWindow.__partySocketSnapshot = () => ({
+      count: sockets.length,
+      latestOpen: sockets.at(-1)?.readyState === NativeWebSocket.OPEN,
+    });
+  });
   return context.newPage();
 }
 
@@ -33,6 +62,16 @@ function arena(page: Page): Locator {
 
 async function waitForPhase(page: Page, phase: string, timeout = 20_000): Promise<void> {
   await expect(arena(page)).toHaveAttribute("data-phase", phase, { timeout });
+}
+
+async function pageWaitForAlive(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="coin-rush-arena"]')?.getAttribute("data-alive") ===
+      "true",
+    undefined,
+    { timeout: 10_000 },
+  );
 }
 
 async function arenaState(page: Page) {
@@ -292,7 +331,38 @@ async function collectUntilRoundEnd(page: Page): Promise<void> {
   throw new Error("Round did not end after repeated coin collection");
 }
 
-test("two phones play a complete three-round Coin Rush match", async ({ browser }) => {
+async function dropSocketAndObserveReconnect(page: Page): Promise<void> {
+  const beforeSocketCount = await page.evaluate(
+    () =>
+      (
+        window as typeof window & {
+          __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+        }
+      ).__partySocketSnapshot?.().count ?? 0,
+  );
+  const dropped = await page.evaluate(
+    () =>
+      (window as typeof window & { __dropPartySocket?: () => boolean }).__dropPartySocket?.() ??
+      false,
+  );
+  expect(dropped).toBe(true);
+  await page.waitForFunction(
+    (previousCount) => {
+      const snapshot = (
+        window as typeof window & {
+          __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+        }
+      ).__partySocketSnapshot?.();
+      return snapshot !== undefined && snapshot.count > previousCount && snapshot.latestOpen;
+    },
+    beforeSocketCount,
+    { timeout: 10_000 },
+  );
+}
+
+test("two phones play, reconnect, and rematch through all three Coin Rush rounds", async ({
+  browser,
+}) => {
   test.setTimeout(240_000);
 
   const alice = await openPhone(browser);
@@ -303,6 +373,8 @@ test("two phones play a complete three-round Coin Rush match", async ({ browser 
   await joinRoom(bob, "Bob", code);
   await expect(alice.getByText(/Players \(2\)/)).toBeVisible({ timeout: 15_000 });
   await expect(bob.getByText(/Players \(2\)/)).toBeVisible({ timeout: 15_000 });
+  await expect(alice.getByText("Alice (you)", { exact: true })).toBeVisible();
+  await expect(bob.getByText("Bob (you)", { exact: true })).toBeVisible();
 
   await alice.getByRole("combobox", { name: "Choose a game" }).click();
   await alice.getByRole("option", { name: "Coin Rush" }).click();
@@ -312,6 +384,8 @@ test("two phones play a complete three-round Coin Rush match", async ({ browser 
   await arena(bob).waitFor({ timeout: 15_000 });
   await waitForPhase(alice, "playing", 15_000);
   await waitForPhase(bob, "playing", 15_000);
+  await expect(arena(alice)).toHaveAttribute("data-local-name", "Alice");
+  await expect(arena(bob)).toHaveAttribute("data-local-name", "Bob");
 
   const aliceCoins = (await arenaState(alice)).coins;
   const bobCoins = (await arenaState(bob)).coins;
@@ -320,6 +394,12 @@ test("two phones play a complete three-round Coin Rush match", async ({ browser 
   for (let round = 1; round <= 3; round++) {
     expect((await arenaState(alice)).round).toBe(round);
     expect((await arenaState(bob)).round).toBe(round);
+    if (round === 2) {
+      await dropSocketAndObserveReconnect(bob);
+      await pageWaitForAlive(bob);
+      expect((await arenaState(bob)).round).toBe(2);
+      await expect(arena(bob)).toHaveAttribute("data-local-name", "Bob");
+    }
     await moveTo(bob, 8, 0);
     await collectUntilRoundEnd(alice);
     await waitForPhase(alice, "round-result");
@@ -350,6 +430,20 @@ test("two phones play a complete three-round Coin Rush match", async ({ browser 
   await waitForPhase(bob, "countdown");
   expect((await arenaState(alice)).round).toBe(1);
   expect((await arenaState(bob)).round).toBe(1);
+  await waitForPhase(alice, "playing", 15_000);
+  await waitForPhase(bob, "playing", 15_000);
+
+  // The remounted phone client restarts its sequence at one. Its first swipe
+  // must be accepted instead of being rejected against the previous match's
+  // replay window.
+  const rematchStart = await arenaState(alice);
+  expect(rematchStart.y).toBe(0);
+  await swipe(alice, "up");
+  await alice.waitForFunction(
+    () => document.querySelector('[data-testid="coin-rush-arena"]')?.getAttribute("data-y") === "1",
+    undefined,
+    { timeout: 10_000 },
+  );
 
   for (const page of [alice, bob]) {
     await page.setViewportSize({ width: 320, height: 568 });
@@ -359,6 +453,5 @@ test("two phones play a complete three-round Coin Rush match", async ({ browser 
     expect(noHorizontalScroll).toBe(true);
   }
 
-  await alice.close();
-  await bob.close();
+  await Promise.all([alice.context().close(), bob.context().close()]);
 });

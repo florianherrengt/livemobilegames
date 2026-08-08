@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { FLAPPY_RACE_SERVER_CONSTANTS } from "../../../src/games/flappy-race/constants.js";
 import {
   createRuntime,
   createRuntimePlayer,
@@ -72,5 +73,32 @@ describe("Flappy Race simulation", () => {
     expect(runtime.phase).toBe("lobby");
     expect(runtime.roundNumber).toBe(0);
     expect(runtime.result).toBeNull();
+  });
+
+  it("resolves the round when every surviving bird clears the finite course", () => {
+    const runtime = makeRuntime();
+    const config = FLAPPY_RACE_SERVER_CONSTANTS;
+    const passElapsedMs =
+      ((config.WORLD_WIDTH + config.SAFE_START_DISTANCE + config.OBSTACLE_WIDTH - config.BIRD_X) /
+        runtime.settings.courseSpeed) *
+      1_000;
+
+    runtime.phase = "running";
+    runtime.openings = [0];
+    runtime.courseElapsedMs = passElapsedMs - config.SIMULATION_STEP_MS / 2;
+    runtime.lastTickAt = 100;
+    runtime.simAccumMs = 0;
+    for (const player of runtime.players.values()) {
+      player.birdY = 50;
+      player.birdVy = 0;
+    }
+
+    updateRuntime(runtime, 100 + config.SIMULATION_STEP_MS);
+
+    expect(runtime.phase).toBe("round-result");
+    expect(runtime.roundWinnerSessionIds.sort()).toEqual(["alice", "bob"]);
+    expect([...runtime.players.values()].map((player) => player.clearedObstacleCount)).toEqual([
+      1, 1,
+    ]);
   });
 });

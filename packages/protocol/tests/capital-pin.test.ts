@@ -4,6 +4,7 @@ import {
   CapitalPinState,
   capitalPinCommandSchema,
   capitalPinSubmitSchema,
+  resumeTransitionRequestSchema,
   roomErrorPayloadSchema,
   roomTransitionSchema,
   startGameRequestSchema,
@@ -28,6 +29,7 @@ describe("capital pin submit command", () => {
       { type: "submit", roundNumber: 1, latitude: 0, longitude: Number.POSITIVE_INFINITY },
       { type: "submit", roundNumber: 0, latitude: 0, longitude: 0 },
       { type: "submit", roundNumber: 1.5, latitude: 0, longitude: 0 },
+      { type: "submit", roundNumber: Number.MAX_SAFE_INTEGER + 1, latitude: 0, longitude: 0 },
     ];
     for (const payload of invalid) {
       expect(capitalPinSubmitSchema.safeParse(payload).success).toBe(false);
@@ -66,6 +68,13 @@ describe("start game request", () => {
 
   it("rejects unknown fields", () => {
     expect(startGameRequestSchema.safeParse({ gameId: "capital-pin" }).success).toBe(false);
+  });
+});
+
+describe("resume transition request", () => {
+  it("only accepts an empty acknowledgement", () => {
+    expect(resumeTransitionRequestSchema.safeParse({}).success).toBe(true);
+    expect(resumeTransitionRequestSchema.safeParse({ sessionId: "forged" }).success).toBe(false);
   });
 });
 

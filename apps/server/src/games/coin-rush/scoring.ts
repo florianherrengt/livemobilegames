@@ -1,3 +1,5 @@
+import { COIN_RUSH_CONSTANTS } from "@phone-party/protocol";
+
 import { spawnCoin } from "./coins.js";
 import type { CoinRushRuntime, RuntimePlayer, RuntimeResult } from "./types.js";
 
@@ -58,7 +60,12 @@ export function roundCandidates(
         player.alive && player.suddenDeathEligible && collectedThisResolution.has(player.sessionId),
     );
   }
-  return [...runtime.players.values()].filter((player) => player.alive && player.score >= 10);
+  return [...runtime.players.values()].filter(
+    (player) =>
+      player.alive &&
+      player.score >= COIN_RUSH_CONSTANTS.WIN_SCORE &&
+      collectedThisResolution.has(player.sessionId),
+  );
 }
 
 /**

@@ -1,3 +1,4 @@
+import { type Client, ErrorCode, Room, ServerError } from "@colyseus/core";
 import {
   GOLF_GAME_ID,
   GOLF_MESSAGE_TYPES,
@@ -7,7 +8,6 @@ import {
   seatOptionsSchema,
   startGameRequestSchema,
 } from "@phone-party/protocol";
-import { type Client, ErrorCode, Room, ServerError } from "colyseus";
 
 import { GOLF_SERVER_CONSTANTS } from "./constants.js";
 import { loadGolfCourse } from "./course.js";
@@ -184,25 +184,17 @@ export class GolfRaceRoom extends Room<{ state: GolfRaceState }> {
     }
     const wasHost = client.sessionId === this.state.hostSessionId;
     const runtimePlayer = this.#engine.players.get(client.sessionId);
-    // A finished player must remain in the recorded finishing order even after
-    // leaving; only their connection status changes.
-    if (runtimePlayer?.finished) {
-      runtimePlayer.connected = false;
-      runtimePlayer.removed = true;
-      this.#roster = this.#roster.filter(
-        (rosterPlayer) => rosterPlayer.connectedSessionId !== client.sessionId,
-      );
-      if (wasHost) {
-        this.#transferHost();
-      }
-      this.#sync();
-      return;
+    const preserveMatchResult =
+      this.#engine.phase !== "lobby" &&
+      runtimePlayer !== undefined &&
+      (runtimePlayer.finished || runtimePlayer.matchPoints > 0);
+    if (!preserveMatchResult) {
+      this.state.players.delete(client.sessionId);
     }
-    this.state.players.delete(client.sessionId);
     this.#roster = this.#roster.filter(
       (rosterPlayer) => rosterPlayer.connectedSessionId !== client.sessionId,
     );
-    removePlayer(this.#engine, client.sessionId);
+    removePlayer(this.#engine, client.sessionId, preserveMatchResult);
     if (wasHost) {
       this.#transferHost();
     }
@@ -251,6 +243,13 @@ export class GolfRaceRoom extends Room<{ state: GolfRaceState }> {
       return;
     }
     resetForNewMatch(this.#engine);
+    // Removed players stay visible on the completed result but cannot become
+    // disconnected ghosts in a rematch.
+    this.#roster = this.#roster.filter(
+      (rosterPlayer) =>
+        rosterPlayer.connectedSessionId !== null &&
+        this.#engine.players.has(rosterPlayer.connectedSessionId),
+    );
     this.#sync();
     this.#tryAutoStart();
   }

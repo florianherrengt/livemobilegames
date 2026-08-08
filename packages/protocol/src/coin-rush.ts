@@ -42,7 +42,7 @@ export type CoinRushDeathType = z.infer<typeof coinRushDeathTypeSchema>;
 export const coinRushMoveSchema = z
   .object({
     type: z.literal("move"),
-    sequence: z.number().int().finite(),
+    sequence: z.number().int().finite().nonnegative(),
     direction: coinRushDirectionSchema,
   })
   .strict();
@@ -69,7 +69,7 @@ export type CoinRushMoveRejectionReason = z.infer<typeof coinRushMoveRejectionRe
 /** Private move rejection sent only to the player whose swipe was refused. */
 export const coinRushMoveRejectionSchema = z
   .object({
-    sequence: z.number().int().finite(),
+    sequence: z.number().int().finite().nonnegative(),
     reason: coinRushMoveRejectionReasonSchema,
   })
   .strict();

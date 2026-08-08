@@ -9,6 +9,7 @@ import { gameIdSchema, gameManifestSchema } from "./games.js";
 export const ROOM_MESSAGE_TYPES = {
   selectGame: "select_game",
   startGame: "start_game",
+  resumeTransition: "room:resume_transition",
   transition: "room:transition",
   playAgain: "play_again",
   error: "room:error",
@@ -131,6 +132,16 @@ export type SelectGameRequest = z.infer<typeof selectGameRequestSchema>;
 export const startGameRequestSchema = z.object({}).strict();
 
 export type StartGameRequest = z.infer<typeof startGameRequestSchema>;
+
+/**
+ * Empty client acknowledgement sent after a lobby connection (including a
+ * reconnection) has installed its message handlers. The server uses it to
+ * resend an already-issued per-player game reservation without racing the
+ * browser's reconnect promise.
+ */
+export const resumeTransitionRequestSchema = z.object({}).strict();
+
+export type ResumeTransitionRequest = z.infer<typeof resumeTransitionRequestSchema>;
 
 /**
  * Server-issued payload sent over the socket when a lobby hands its connected

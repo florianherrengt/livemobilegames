@@ -7,6 +7,35 @@ async function openPhone(browser: Browser): Promise<Page> {
     hasTouch: true,
     deviceScaleFactor: 2,
   });
+  await context.addInitScript(() => {
+    const NativeWebSocket = window.WebSocket;
+    const sockets: WebSocket[] = [];
+    class TrackedWebSocket extends NativeWebSocket {
+      constructor(url: string | URL, protocols: string | string[] = []) {
+        super(url, protocols);
+        sockets.push(this);
+      }
+    }
+    Object.defineProperty(window, "WebSocket", { configurable: true, value: TrackedWebSocket });
+    const testWindow = window as typeof window & {
+      __dropPartySocket?: () => boolean;
+      __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+    };
+    testWindow.__dropPartySocket = () => {
+      const socket = [...sockets]
+        .reverse()
+        .find((candidate) => candidate.readyState === NativeWebSocket.OPEN);
+      if (socket === undefined) {
+        return false;
+      }
+      socket.close();
+      return true;
+    };
+    testWindow.__partySocketSnapshot = () => ({
+      count: sockets.length,
+      latestOpen: sockets.at(-1)?.readyState === NativeWebSocket.OPEN,
+    });
+  });
   return context.newPage();
 }
 
@@ -32,6 +61,35 @@ function arena(page: Page) {
 
 async function waitForPhase(page: Page, phase: string, timeout = 20_000): Promise<void> {
   await expect(arena(page)).toHaveAttribute("data-phase", phase, { timeout });
+}
+
+async function dropSocketAndObserveReconnect(page: Page): Promise<void> {
+  const beforeSocketCount = await page.evaluate(
+    () =>
+      (
+        window as typeof window & {
+          __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+        }
+      ).__partySocketSnapshot?.().count ?? 0,
+  );
+  const dropped = await page.evaluate(
+    () =>
+      (window as typeof window & { __dropPartySocket?: () => boolean }).__dropPartySocket?.() ??
+      false,
+  );
+  expect(dropped).toBe(true);
+  await page.waitForFunction(
+    (previousCount) => {
+      const snapshot = (
+        window as typeof window & {
+          __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+        }
+      ).__partySocketSnapshot?.();
+      return snapshot !== undefined && snapshot.count > previousCount && snapshot.latestOpen;
+    },
+    beforeSocketCount,
+    { timeout: 10_000 },
+  );
 }
 
 test("two phones play a full Four-Sided Pong match to 10 and rematch", async ({ browser }) => {
@@ -99,9 +157,10 @@ test("two phones play a full Four-Sided Pong match to 10 and rematch", async ({ 
   const aliceBoard = (await alice.getByTestId("pong-leaderboard").innerText()).trim();
   const bobBoard = (await bob.getByTestId("pong-leaderboard").innerText()).trim();
   expect(bobBoard).toBe(aliceBoard);
-  // The winner may finish above 10 when two owned balls score in the same
-  // final simulation step, so accept any score from 10 to 12.
-  expect(aliceBoard).toMatch(/(10|11|12) points/);
+  // The first authoritative goal to reach the target ends the match. Later
+  // same-step exits cannot create co-winners or push the winner above ten.
+  expect(aliceBoard).toMatch(/\b10 points\b/);
+  expect(aliceBoard).not.toMatch(/\b1[12] points\b/);
   const aliceHeadline = await alice.locator('h2[aria-live="polite"]').innerText();
   const bobHeadline = await bob.locator('h2[aria-live="polite"]').innerText();
   expect(bobHeadline).toBe(aliceHeadline);
@@ -119,6 +178,14 @@ test("two phones play a full Four-Sided Pong match to 10 and rematch", async ({ 
       }>
     ).every((entry) => entry.score === 0),
   ).toBe(true);
+
+  // Exercise a real transient socket loss after the room has exceeded the
+  // SDK's minimum uptime. Bob must return to the same two-player rematch with
+  // live controls rather than forcing a terminal one-player result.
+  await waitForPhase(bob, "running", 15_000);
+  await dropSocketAndObserveReconnect(bob);
+  await expect(arena(bob)).toHaveAttribute("data-player-count", "2");
+  await expect(arena(bob)).toHaveAttribute("aria-disabled", "false");
 
   // The arena stays usable at the 320px minimum width without page scroll.
   for (const page of [alice, bob]) {
@@ -209,6 +276,73 @@ test("touch anywhere on the screen steers the paddle by the centre line", async 
     element?.dispatchEvent(
       new PointerEvent("pointerup", {
         pointerId: 3,
+        pointerType: "touch",
+        bubbles: true,
+        clientX: 0,
+        clientY: 200,
+      }),
+    );
+  });
+
+  // Bob's top edge is rotated to the local bottom. Screen-left therefore maps
+  // to the high end of the world-edge coordinate, and screen-right to low.
+  const bobBox = await arena(bob).boundingBox();
+  if (!bobBox) {
+    throw new Error("Bob arena missing");
+  }
+  const bobLeftX = bobBox.x + bobBox.width * 0.2;
+  const bobRightX = bobBox.x + bobBox.width * 0.8;
+  await bob.evaluate((x) => {
+    const element = document.querySelector('[data-testid="pong-arena"]');
+    element?.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        pointerId: 4,
+        pointerType: "touch",
+        bubbles: true,
+        clientX: x,
+        clientY: 200,
+      }),
+    );
+  }, bobLeftX);
+  await expect(arena(bob)).toHaveAttribute("data-direction", "left", { timeout: 2_000 });
+  await bob.waitForFunction(
+    () => {
+      const element = document.querySelector('[data-testid="pong-arena"]');
+      const paddleMax = Number(element?.getAttribute("data-paddle-max") ?? 0);
+      const paddleCenter = Number(element?.getAttribute("data-paddle-center") ?? 0);
+      return paddleCenter > paddleMax - 120;
+    },
+    undefined,
+    { timeout: 2_000 },
+  );
+  await bob.evaluate((x) => {
+    const element = document.querySelector('[data-testid="pong-arena"]');
+    element?.dispatchEvent(
+      new PointerEvent("pointermove", {
+        pointerId: 4,
+        pointerType: "touch",
+        bubbles: true,
+        clientX: x,
+        clientY: 200,
+      }),
+    );
+  }, bobRightX);
+  await expect(arena(bob)).toHaveAttribute("data-direction", "right", { timeout: 2_000 });
+  await bob.waitForFunction(
+    () => {
+      const element = document.querySelector('[data-testid="pong-arena"]');
+      const paddleMin = Number(element?.getAttribute("data-paddle-min") ?? 0);
+      const paddleCenter = Number(element?.getAttribute("data-paddle-center") ?? 0);
+      return paddleCenter < paddleMin + 120;
+    },
+    undefined,
+    { timeout: 2_000 },
+  );
+  await bob.evaluate(() => {
+    const element = document.querySelector('[data-testid="pong-arena"]');
+    element?.dispatchEvent(
+      new PointerEvent("pointerup", {
+        pointerId: 4,
         pointerType: "touch",
         bubbles: true,
         clientX: 0,

@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-
+import { matchMaker } from "@colyseus/core";
 import {
   FallingPlatformsState,
   type ISeatReservation,
@@ -7,7 +7,6 @@ import {
   ROOM_MESSAGE_TYPES,
   type RoomTransition,
 } from "@phone-party/protocol";
-import { matchMaker } from "colyseus";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -260,9 +259,26 @@ describe("Falling Platforms room integration", () => {
     bobGame.send("play_again", {});
     await nonHostAgain;
 
+    // A rematch must not start while a roster player is inside the reconnect
+    // grace window. Preserve the completed room until that player returns.
+    bobGame.reconnection.enabled = false;
+    bobGame.connection.close();
+    await waitFor(() => aliceGame.state.players.get(bobGame.sessionId)?.connected === false);
+    await waitFor(() => bobGame.reconnectionToken !== undefined);
+
     aliceGame.send("play_again", {});
+    await waitFor(() => aliceGame.state.roundNumber === 0);
+    expect(aliceGame.state.phase).toBe("lobby");
+    expect(aliceGame.state.platforms.size).toBe(0);
+
+    const token = bobGame.reconnectionToken;
+    if (token === undefined) {
+      throw new Error("Missing Bob reconnection token");
+    }
+    const reconnectedBob = await test.testServer.sdk.reconnect(token, FallingPlatformsState);
     await waitFor(() => aliceGame.state.phase === "countdown");
     await waitFor(() => aliceGame.state.phase === "playing");
+    expect(reconnectedBob.state.phase).toBe("playing");
     expect(aliceGame.state.roundNumber).toBe(1);
     expect(aliceGame.state.aliveCount).toBe(2);
     expect(aliceGame.state.platforms.size).toBe(25);
@@ -481,6 +497,77 @@ describe("Falling Platforms room integration", () => {
       5_000,
     );
   });
+
+  it("waits for every member of a three-player roster before starting a rematch", async () => {
+    const players = [
+      {
+        playerId: "11111111-1111-4111-8111-111111111111",
+        playerName: "Alice",
+        isHost: true,
+        joinedOrder: 0,
+      },
+      {
+        playerId: "22222222-2222-4222-8222-222222222222",
+        playerName: "Bob",
+        isHost: false,
+        joinedOrder: 1,
+      },
+      {
+        playerId: "33333333-3333-4333-8333-333333333333",
+        playerName: "Carol",
+        isHost: false,
+        joinedOrder: 2,
+      },
+    ];
+    const room = await matchMaker.create(FALLING_PLATFORMS_ROOM_TYPE, {
+      roomCode: "ABCDEF",
+      players,
+      e2eMode: true,
+      transitionTimeoutMs: 5_000,
+      roomCreationToken: ROOM_CREATION_TOKEN,
+    });
+    const reservations = await Promise.all(
+      players.map((player) =>
+        matchMaker.joinById(room.roomId, {
+          playerId: player.playerId,
+          playerName: player.playerName,
+        }),
+      ),
+    );
+    const alice = await consumeGame(test, reservations[0]);
+    const bob = await consumeGame(test, reservations[1]);
+    const carol = await consumeGame(test, reservations[2]);
+    await waitFor(() => alice.state.phase === "playing");
+
+    // Move Bob and Alice onto the first two deterministic warning tiles so
+    // Carol wins and the room returns to its rematch lobby quickly.
+    await waitFor(() => alice.state.platforms.get("3:4")?.state === "warning");
+    hop(bob, 1, "3:4");
+    await waitFor(() => alice.state.players.get(bob.sessionId)?.alive === false, 5_000);
+    await waitFor(() => alice.state.platforms.get("1:2")?.state === "warning", 5_000);
+    hop(alice, 1, "1:2");
+    await waitFor(() => alice.state.phase === "results", 5_000);
+    expect(alice.state.winnerSessionId).toBe(carol.sessionId);
+    await waitFor(() => alice.state.phase === "lobby", 10_000);
+
+    carol.reconnection.enabled = false;
+    carol.connection.close();
+    await waitFor(() => alice.state.players.get(carol.sessionId)?.connected === false);
+    const token = carol.reconnectionToken;
+    if (token === undefined) {
+      throw new Error("Missing Carol reconnection token");
+    }
+
+    alice.send("play_again", {});
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(alice.state.phase).toBe("lobby");
+    expect(alice.state.roundNumber).toBe(0);
+
+    const reconnectedCarol = await test.testServer.sdk.reconnect(token, FallingPlatformsState);
+    await waitFor(() => alice.state.phase === "playing", 10_000);
+    expect(reconnectedCarol.state.players.size).toBe(3);
+    expect(alice.state.aliveCount).toBe(3);
+  }, 30_000);
 
   it("rejects direct matchmaking creation without the server room token", async () => {
     await expect(

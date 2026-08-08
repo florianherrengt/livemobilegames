@@ -1,5 +1,5 @@
+import { matchMaker } from "@colyseus/core";
 import type { ISeatReservation } from "@phone-party/protocol";
-import { matchMaker } from "colyseus";
 
 import type { GameRegistry } from "../games/game-registry.js";
 import { attachDirectoryCleanup } from "./directory-cleanup.js";

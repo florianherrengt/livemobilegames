@@ -57,6 +57,8 @@ export const LIVE_DRAWING_GUESSING_CONSTANTS = {
   MAX_POINT_COORDINATES_PER_MESSAGE: 200,
   /** Maximum points (x,y pairs) in one logical stroke. */
   MAX_POINTS_PER_STROKE: 2_000,
+  /** Maximum synchronized points retained across all strokes in one turn. */
+  MAX_POINTS_PER_TURN: 10_000,
   /** Maximum simultaneous strokes drawn during one turn (anti-abuse bound). */
   MAX_STROKES_PER_TURN: 1_000,
   /** Flood protection; not a gameplay cooldown. */
@@ -74,6 +76,7 @@ export const liveDrawingStrokeIdSchema = z
 
 export const liveDrawingPointsSchema = z
   .array(z.number().finite().min(0).max(LIVE_DRAWING_GUESSING_CONSTANTS.CANVAS_SIZE))
+  .min(2)
   .max(LIVE_DRAWING_GUESSING_CONSTANTS.MAX_POINT_COORDINATES_PER_MESSAGE)
   .refine((points) => points.length % 2 === 0, "Points must be x,y pairs");
 

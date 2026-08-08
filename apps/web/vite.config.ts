@@ -11,6 +11,15 @@ export default defineConfig(({ mode }) => {
   const previewPort = Number(process.env.PREVIEW_PORT || env.PREVIEW_PORT || 4173);
   const serverPort = Number(process.env.PORT || env.PORT || 3000);
   const serverTarget = `http://127.0.0.1:${serverPort}`;
+  const serverColyseusPath = normalizePath(
+    process.env.COLYSEUS_PATH || env.COLYSEUS_PATH || "/colyseus",
+  );
+  const browserColyseusPath = normalizePath(
+    process.env.VITE_COLYSEUS_PATH || env.VITE_COLYSEUS_PATH || "/colyseus",
+  );
+  if (serverColyseusPath !== browserColyseusPath) {
+    throw new Error("COLYSEUS_PATH and VITE_COLYSEUS_PATH must match");
+  }
 
   return {
     plugins: [react()],
@@ -26,7 +35,7 @@ export default defineConfig(({ mode }) => {
           target: serverTarget,
           changeOrigin: true,
         },
-        "/colyseus": {
+        [browserColyseusPath]: {
           target: serverTarget,
           ws: true,
         },
@@ -52,3 +61,11 @@ export default defineConfig(({ mode }) => {
     },
   };
 });
+
+function normalizePath(value: string): string {
+  const trimmed = value.trim();
+  if (!/^\/[^\s/?#]+(?:\/[^\s/?#]+)*\/?$/.test(trimmed)) {
+    throw new Error("Colyseus paths must be non-root URL path prefixes");
+  }
+  return trimmed.replace(/\/$/, "");
+}

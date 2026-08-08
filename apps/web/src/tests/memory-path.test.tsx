@@ -113,6 +113,25 @@ describe("MemoryPathGameView", () => {
     expect(screen.getByTestId("memory-path-timer")).toBeInTheDocument();
   });
 
+  it("disables movement while the room transport is reconnecting", () => {
+    const state = makeMemoryPathState("racing");
+    const { connection, sent } = makeRoomConnection(state);
+    Object.assign(connection, { reconnecting: true });
+    render(
+      <MemoryPathArenaView
+        connection={connection}
+        state={state}
+        selfSessionId="host-session"
+        roomError={null}
+      />,
+    );
+
+    expect(screen.getByTestId("memory-path-arena")).toHaveAttribute("data-can-move", "false");
+    expect(screen.getByText("Reconnecting…")).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "ArrowUp" });
+    expect(sent).toHaveLength(0);
+  });
+
   it("shows the path and opponents during a flash", () => {
     const state = makeMemoryPathState("racing", {
       pathVisible: true,
@@ -276,6 +295,22 @@ describe("MemoryPathGameView", () => {
     expect(screen.getByTestId("memory-path-leaderboard")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Play again" }));
     expect(sent).toContainEqual({ type: "play_again", payload: {} });
+  });
+
+  it("keeps the winner headline after the winner permanently leaves", () => {
+    const state = makeMemoryPathState("match-result", {
+      hostSessionId: "bob-session",
+      matchResult: makeMemoryPathMatchResult(),
+      aliceRoundWins: 3,
+    });
+    state.players.delete("host-session");
+    const { connection } = makeRoomConnection(state);
+
+    render(
+      <MemoryPathGameView connection={connection} state={state} selfSessionId="bob-session" />,
+    );
+
+    expect(screen.getByText("Alice wins the match!")).toBeInTheDocument();
   });
 
   it("keeps the arena overflow hidden for 320px layouts", () => {

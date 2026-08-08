@@ -142,6 +142,20 @@ describe("FallingPlatformsGameView", () => {
     expect(screen.getByText(/Round 1 starts automatically/)).toBeInTheDocument();
   });
 
+  it("counts only connected players during the countdown", () => {
+    const state = makeFallingPlatformsState("countdown", { aliceConnected: false });
+    const { connection } = makeRoomConnection(state);
+    render(
+      <FallingPlatformsGameView
+        connection={connection}
+        state={state}
+        selfSessionId="host-session"
+      />,
+    );
+    expect(screen.getByText("1 player connected")).toBeInTheDocument();
+    expect(screen.queryByText("2 players connected")).not.toBeInTheDocument();
+  });
+
   it("shows the how-to during countdown and hides it once play begins", () => {
     const state = makeFallingPlatformsState("countdown");
     const { connection } = makeRoomConnection(state);

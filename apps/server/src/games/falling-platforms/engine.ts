@@ -1,4 +1,4 @@
-import { computeArenaSide } from "@phone-party/protocol";
+import { computeArenaSide, FALLING_PLATFORMS_CONSTANTS } from "@phone-party/protocol";
 
 import { resolveLanding } from "./hopping.js";
 import { selectAndWarnPlatforms, transitionWarningsToGone } from "./platforms.js";
@@ -78,7 +78,7 @@ export function eliminatePlayersOnPlatform(runtime: MatchRuntime, platformId: st
 /** Starts the countdown for a new round. Returns false when not enough players. */
 export function startMatch(runtime: MatchRuntime, now: number): boolean {
   const participants = [...runtime.players.values()].filter((player) => player.connected);
-  if (participants.length < 2) {
+  if (participants.length < FALLING_PLATFORMS_CONSTANTS.MIN_PLAYERS) {
     return false;
   }
 

@@ -34,6 +34,9 @@ export function createSettings(e2eMode: boolean): GolfSettings {
     roundResultMs: e2eMode
       ? GOLF_SERVER_CONSTANTS.E2E_ROUND_RESULT_MS
       : GOLF_SERVER_CONSTANTS.ROUND_RESULT_MS,
+    roundMaxDurationMs: e2eMode
+      ? GOLF_SERVER_CONSTANTS.E2E_ROUND_MAX_DURATION_MS
+      : GOLF_SERVER_CONSTANTS.ROUND_MAX_DURATION_MS,
     maxShotSpeed: e2eMode
       ? GOLF_SERVER_CONSTANTS.E2E_MAX_SHOT_SPEED
       : GOLF_SERVER_CONSTANTS.MAX_SHOT_SPEED,
@@ -51,6 +54,7 @@ export function createRuntime(settings: GolfSettings, course: GolfCourse): GolfR
     totalRounds: GOLF_SERVER_CONSTANTS.TOTAL_ROUNDS,
     roundWinnerSessionIds: [],
     resultsEndsAt: 0,
+    roundEndsAt: 0,
     roundParticipantCount: 0,
     turnOrder: [],
     turnIndex: 0,
@@ -89,6 +93,7 @@ export function addPlayer(
     sectionProgress: 0,
     finished: false,
     finishedRank: 0,
+    timedOut: false,
     roundWins: 0,
     matchPoints: 0,
     playedThisRound: false,
@@ -102,8 +107,23 @@ export function addPlayer(
   return player;
 }
 
-export function removePlayer(runtime: GolfRuntime, sessionId: string): void {
-  runtime.players.delete(sessionId);
+export function removePlayer(
+  runtime: GolfRuntime,
+  sessionId: string,
+  preserveMatchResult = false,
+): void {
+  const player = runtime.players.get(sessionId);
+  if (preserveMatchResult && player !== undefined) {
+    player.connected = false;
+    player.removed = true;
+    player.vx = 0;
+    player.vy = 0;
+    player.moving = false;
+    player.stoppedSince = null;
+    player.shotTakenThisTurn = true;
+  } else {
+    runtime.players.delete(sessionId);
+  }
   runtime.turnOrder = runtime.turnOrder.filter((id) => id !== sessionId);
   if (runtime.currentTurnSessionId === sessionId) {
     runtime.currentTurnSessionId = "";
@@ -112,11 +132,13 @@ export function removePlayer(runtime: GolfRuntime, sessionId: string): void {
 }
 
 export function startMatch(runtime: GolfRuntime, now: number): boolean {
-  const connected = [...runtime.players.values()].filter((player) => player.connected);
+  const connected = [...runtime.players.values()].filter(
+    (player) => player.connected && !player.removed,
+  );
   if (connected.length < GOLF_SERVER_CONSTANTS.MIN_PLAYERS) {
     return false;
   }
-  const ordered = [...runtime.players.values()].sort((a, b) => a.joinedOrder - b.joinedOrder);
+  const ordered = connected.sort((a, b) => a.joinedOrder - b.joinedOrder);
   for (const player of ordered) {
     resetPlayerForMatch(player);
     const start = runtime.course.startingPositions[player.joinedOrder];
@@ -134,7 +156,8 @@ export function startMatch(runtime: GolfRuntime, now: number): boolean {
   runtime.totalRounds = GOLF_SERVER_CONSTANTS.TOTAL_ROUNDS;
   runtime.roundWinnerSessionIds = [];
   runtime.resultsEndsAt = 0;
-  runtime.roundParticipantCount = runtime.players.size;
+  runtime.roundEndsAt = 0;
+  runtime.roundParticipantCount = ordered.length;
   runtime.countdownEndsAt = now + runtime.settings.countdownMs;
   runtime.aimingEndsAt = 0;
   runtime.turnOrder = [];
@@ -158,23 +181,29 @@ function resetPlayerForMatch(player: RuntimePlayer): void {
   player.sectionProgress = 0;
   player.finished = false;
   player.finishedRank = 0;
+  player.timedOut = false;
   player.roundWins = 0;
   player.matchPoints = 0;
   player.playedThisRound = false;
   player.shotTakenThisTurn = false;
   player.collisionImmunityUntil = 0;
   player.protectedNextTurn = false;
-  player.removed = false;
   player.lastShotSequence = 0;
   player.seenShotSequences.clear();
 }
 
 export function resetForNewMatch(runtime: GolfRuntime): void {
+  for (const [sessionId, player] of runtime.players) {
+    if (player.removed) {
+      runtime.players.delete(sessionId);
+    }
+  }
   runtime.phase = "lobby";
   runtime.roundNumber = 0;
   runtime.totalRounds = GOLF_SERVER_CONSTANTS.TOTAL_ROUNDS;
   runtime.roundWinnerSessionIds = [];
   runtime.resultsEndsAt = 0;
+  runtime.roundEndsAt = 0;
   runtime.roundParticipantCount = 0;
   runtime.countdownEndsAt = 0;
   runtime.aimingEndsAt = 0;
@@ -209,6 +238,7 @@ function resetPlayerForRound(runtime: GolfRuntime, player: RuntimePlayer): void 
   player.sectionProgress = 0;
   player.finished = false;
   player.finishedRank = 0;
+  player.timedOut = false;
   player.playedThisRound = false;
   player.shotTakenThisTurn = false;
   player.collisionImmunityUntil = 0;
@@ -228,8 +258,15 @@ function prepareRoundCourse(runtime: GolfRuntime, roundNumber: number): void {
 export function updateRuntime(runtime: GolfRuntime, now: number): void {
   if (runtime.phase === "countdown") {
     if (now >= runtime.countdownEndsAt) {
+      runtime.roundEndsAt = now + runtime.settings.roundMaxDurationMs;
       beginRound(runtime, now);
     }
+  } else if (
+    (runtime.phase === "aiming" || runtime.phase === "simulating") &&
+    runtime.roundEndsAt > 0 &&
+    now >= runtime.roundEndsAt
+  ) {
+    finishRoundAtDeadline(runtime, now);
   } else if (runtime.phase === "aiming") {
     if (now >= runtime.aimingEndsAt) {
       const active = runtime.players.get(runtime.currentTurnSessionId);
@@ -321,7 +358,7 @@ export function submitShot(
 
 function beginRound(runtime: GolfRuntime, now: number): void {
   const unfinished = [...runtime.players.values()]
-    .filter((player) => !player.finished)
+    .filter((player) => !player.removed && !player.finished)
     .sort((a, b) => a.raceProgress - b.raceProgress || a.joinedOrder - b.joinedOrder);
   for (const player of unfinished) {
     player.playedThisRound = false;
@@ -333,7 +370,8 @@ function beginRound(runtime: GolfRuntime, now: number): void {
 }
 
 function startNextTurn(runtime: GolfRuntime, now: number): void {
-  if (runtime.players.size === 0) {
+  const participants = currentRoundParticipants(runtime);
+  if (participants.length === 0) {
     finishMatch(runtime);
     return;
   }
@@ -344,7 +382,7 @@ function startNextTurn(runtime: GolfRuntime, now: number): void {
       continue;
     }
     const player = runtime.players.get(sessionId);
-    if (!player || player.finished || player.playedThisRound) {
+    if (!player || player.removed || player.finished || player.playedThisRound) {
       runtime.turnIndex += 1;
       continue;
     }
@@ -356,7 +394,7 @@ function startNextTurn(runtime: GolfRuntime, now: number): void {
     return;
   }
 
-  if ([...runtime.players.values()].every((player) => player.finished)) {
+  if (participants.every((player) => player.finished)) {
     finishRound(runtime, now);
     return;
   }
@@ -366,7 +404,7 @@ function startNextTurn(runtime: GolfRuntime, now: number): void {
 function finishTurn(runtime: GolfRuntime, now: number): void {
   runtime.currentTurnSessionId = "";
   runtime.aimingEndsAt = 0;
-  if ([...runtime.players.values()].every((player) => player.finished)) {
+  if (currentRoundParticipants(runtime).every((player) => player.finished)) {
     finishRound(runtime, now);
     return;
   }
@@ -375,9 +413,9 @@ function finishTurn(runtime: GolfRuntime, now: number): void {
 }
 
 function finishRound(runtime: GolfRuntime, now: number): void {
-  const ordered = [...runtime.players.values()].sort(
-    (a, b) => a.finishedRank - b.finishedRank || a.joinedOrder - b.joinedOrder,
-  );
+  const ordered = [...runtime.players.values()]
+    .filter((player) => player.finished && player.finishedRank > 0)
+    .sort((a, b) => a.finishedRank - b.finishedRank || a.joinedOrder - b.joinedOrder);
   runtime.roundWinnerSessionIds = ordered
     .filter((player) => player.finishedRank === 1)
     .map((player) => player.sessionId);
@@ -391,14 +429,39 @@ function finishRound(runtime: GolfRuntime, now: number): void {
     player.matchPoints += Math.max(1, runtime.roundParticipantCount - player.finishedRank + 1);
   }
   runtime.phase = "round-result";
+  runtime.roundEndsAt = 0;
   runtime.resultsEndsAt = now + runtime.settings.roundResultMs;
+}
+
+function finishRoundAtDeadline(runtime: GolfRuntime, now: number): void {
+  const unfinished = currentRoundParticipants(runtime)
+    .filter((player) => !player.finished)
+    .sort(
+      (a, b) =>
+        b.raceProgress - a.raceProgress ||
+        b.latestGateIndex - a.latestGateIndex ||
+        b.sectionProgress - a.sectionProgress ||
+        a.joinedOrder - b.joinedOrder,
+    );
+  for (const player of unfinished) {
+    runtime.finishOrder += 1;
+    player.finished = true;
+    player.finishedRank = runtime.finishOrder;
+    player.timedOut = true;
+    player.vx = 0;
+    player.vy = 0;
+    player.moving = false;
+    player.stoppedSince = null;
+  }
+  finishRound(runtime, now);
 }
 
 function startNextRound(runtime: GolfRuntime, now: number): void {
   runtime.roundNumber += 1;
   runtime.roundWinnerSessionIds = [];
   runtime.resultsEndsAt = 0;
-  runtime.roundParticipantCount = runtime.players.size;
+  runtime.roundEndsAt = now + runtime.settings.roundMaxDurationMs;
+  runtime.roundParticipantCount = currentRoundParticipants(runtime).length;
   runtime.finishOrder = 0;
   for (const player of runtime.players.values()) {
     resetPlayerForRound(runtime, player);
@@ -430,7 +493,7 @@ function advanceSimulation(runtime: GolfRuntime, now: number): void {
 function simulateStep(runtime: GolfRuntime, stepMs: number, now: number): void {
   const previous = new Map<string, { x: number; y: number }>();
   for (const [sessionId, player] of runtime.players) {
-    if (!player.finished) {
+    if (!player.removed && !player.finished) {
       previous.set(sessionId, { x: player.x, y: player.y });
     }
   }
@@ -449,7 +512,7 @@ function simulateStep(runtime: GolfRuntime, stepMs: number, now: number): void {
     t: number;
   }> = [];
   for (const player of runtime.players.values()) {
-    if (player.finished) {
+    if (player.removed || player.finished) {
       continue;
     }
     const before = previous.get(player.sessionId);
@@ -477,7 +540,7 @@ function simulateStep(runtime: GolfRuntime, stepMs: number, now: number): void {
   }
 
   for (const player of runtime.players.values()) {
-    if (player.finished) {
+    if (player.removed || player.finished) {
       continue;
     }
     if (isInHazard(runtime.roundCourse, player)) {
@@ -486,7 +549,7 @@ function simulateStep(runtime: GolfRuntime, stepMs: number, now: number): void {
   }
 
   for (const player of runtime.players.values()) {
-    if (player.finished) {
+    if (player.removed || player.finished) {
       continue;
     }
     const speed = speedOf(player);
@@ -648,7 +711,7 @@ function isValidPlacement(
     return false;
   }
   for (const other of runtime.players.values()) {
-    if (other.sessionId === player.sessionId || other.finished) {
+    if (other.sessionId === player.sessionId || other.removed || other.finished) {
       continue;
     }
     if (Math.hypot(other.x - point.x, other.y - point.y) < radius * 2) {
@@ -690,12 +753,16 @@ function distanceToObstacleForPlacement(
 }
 
 function allPlayersStopped(runtime: GolfRuntime): boolean {
-  for (const player of runtime.players.values()) {
+  for (const player of currentRoundParticipants(runtime)) {
     if (!player.finished && player.moving) {
       return false;
     }
   }
   return true;
+}
+
+function currentRoundParticipants(runtime: GolfRuntime): RuntimePlayer[] {
+  return [...runtime.players.values()].filter((player) => !player.removed);
 }
 
 function clearTurnImmunity(player: RuntimePlayer): void {
@@ -711,26 +778,36 @@ export function finishMatch(runtime: GolfRuntime): void {
   runtime.phase = "finished";
   runtime.aimingEndsAt = 0;
   runtime.resultsEndsAt = 0;
+  runtime.roundEndsAt = 0;
   runtime.currentTurnSessionId = "";
   runtime.result = buildResult(runtime);
 }
 
 function buildResult(runtime: GolfRuntime): GolfResult {
-  const entries: GolfLeaderboardEntry[] = [...runtime.players.values()]
-    .sort(
-      (a, b) =>
-        b.matchPoints - a.matchPoints || b.roundWins - a.roundWins || a.joinedOrder - b.joinedOrder,
-    )
-    .map((player, index) => ({
+  const ordered = [...runtime.players.values()].sort(
+    (a, b) =>
+      b.matchPoints - a.matchPoints || b.roundWins - a.roundWins || a.joinedOrder - b.joinedOrder,
+  );
+  const entries: GolfLeaderboardEntry[] = [];
+  for (const [index, player] of ordered.entries()) {
+    const previous = ordered[index - 1];
+    const previousEntry = entries[index - 1];
+    const rank =
+      previous !== undefined && previous.matchPoints === player.matchPoints
+        ? (previousEntry?.rank ?? index + 1)
+        : index + 1;
+    entries.push({
       sessionId: player.sessionId,
-      rank: index + 1,
+      rank,
       finishOrder: index + 1,
       primaryScore: player.matchPoints,
       roundWins: player.roundWins,
       label: player.name,
-    }));
+    });
+  }
+  const winningScore = entries[0]?.primaryScore;
   const winnerSessionIds = entries
-    .filter((entry) => entry.rank === 1)
+    .filter((entry) => winningScore !== undefined && entry.primaryScore === winningScore)
     .map((entry) => entry.sessionId);
   return { winnerSessionIds, leaderboard: entries };
 }

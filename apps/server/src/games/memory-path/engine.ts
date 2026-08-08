@@ -11,12 +11,7 @@ import {
   segmentIntersectsCircle,
 } from "./geometry.js";
 import { prepareRound, returnToLobby, startMatch } from "./runtime.js";
-import {
-  allMatchLeaders,
-  buildMatchResult,
-  matchLeaders,
-  resolveTimeoutWinner,
-} from "./scoring.js";
+import { buildMatchResult, matchLeaders, resolveTimeoutWinner } from "./scoring.js";
 import type { MemoryPathRuntime, RuntimePlayer } from "./types.js";
 
 const PROGRESS_EPSILON = 1e-9;
@@ -92,6 +87,7 @@ function startFall(player: RuntimePlayer, now: number): void {
   player.inputX = 0;
   player.inputY = 0;
   player.progress = 0;
+  player.falls += 1;
 }
 
 function finishPlayer(player: RuntimePlayer): void {
@@ -171,7 +167,7 @@ function advanceRound(runtime: MemoryPathRuntime, now: number): void {
         MEMORY_PATH_CONSTANTS.NORMAL_ROUNDS + 1,
         "hard",
         false,
-        new Set(allMatchLeaders(runtime).map((leader) => leader.sessionId)),
+        new Set(leaders.map((leader) => leader.sessionId)),
       );
     } catch (error) {
       if (!(error instanceof Error) || !/No unused .* route available/.test(error.message)) {

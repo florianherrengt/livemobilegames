@@ -24,6 +24,8 @@ describe("coin rush move command", () => {
     const invalid = [
       { type: "move", sequence: 1.5, direction: "up" },
       { type: "move", sequence: Number.NaN, direction: "up" },
+      { type: "move", sequence: -1, direction: "up" },
+      { type: "move", sequence: Number.MAX_SAFE_INTEGER + 1, direction: "up" },
       { type: "move", sequence: 1, direction: "diagonal" },
       { type: "move", sequence: 1 },
       {

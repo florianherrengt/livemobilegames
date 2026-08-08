@@ -193,6 +193,7 @@ function RoundResultView({
                     ? " (you)"
                     : ""}
                 </Typography>
+                {player.timedOut && <Chip label="timed out" size="small" variant="outlined" />}
                 <Typography color="text.secondary">{player.matchPoints} pts</Typography>
               </ListItem>
             ))}

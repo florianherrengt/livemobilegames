@@ -89,12 +89,16 @@ describe("Kart Racing camera", () => {
 describe("KartRacingGameView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.sessionStorage.removeItem("kart-racing-e2e-driver");
+    delete (window as unknown as { __kartRacingDrive?: unknown }).__kartRacingDrive;
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(createMockContext());
     vi.stubGlobal("requestAnimationFrame", () => 1);
     vi.stubGlobal("cancelAnimationFrame", () => undefined);
   });
 
   afterEach(() => {
+    window.sessionStorage.removeItem("kart-racing-e2e-driver");
+    delete (window as unknown as { __kartRacingDrive?: unknown }).__kartRacingDrive;
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -157,6 +161,25 @@ describe("KartRacingGameView", () => {
         payload: expect.objectContaining({ type: "steer", steering: 0 }),
       }),
     );
+  });
+
+  it("only exposes the scripted driver after an explicit test-session opt in", () => {
+    const state = makeKartRacingState("racing");
+    const { connection } = makeRoomConnection(state);
+    const first = render(
+      <ArenaView connection={connection} state={state} selfSessionId="host-session" />,
+    );
+    expect(
+      (window as unknown as { __kartRacingDrive?: unknown }).__kartRacingDrive,
+    ).toBeUndefined();
+    first.unmount();
+
+    window.sessionStorage.setItem("kart-racing-e2e-driver", "1");
+    render(<ArenaView connection={connection} state={state} selfSessionId="host-session" />);
+    expect(
+      (window as unknown as { __kartRacingDrive?: { steer: unknown; shoot: unknown } })
+        .__kartRacingDrive,
+    ).toEqual({ steer: expect.any(Function), shoot: expect.any(Function) });
   });
 
   it("sends a shoot intent on a deliberate upward swipe when loaded", () => {

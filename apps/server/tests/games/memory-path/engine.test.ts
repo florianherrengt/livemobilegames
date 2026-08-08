@@ -171,6 +171,7 @@ describe("Memory Path movement, falls, and respawns", () => {
     };
     advanceTo(runtime, runtime.raceStartedAt + 100);
     expect(alice.falling).toBe(true);
+    expect(alice.falls).toBe(1);
   });
 
   it("resets current progress but preserves maximum progress after a fall", () => {
@@ -336,6 +337,27 @@ describe("Memory Path round and match flow", () => {
     expect(player(runtime, "bob").participating).toBe(true);
     expect(player(runtime, "carol").participating).toBe(true);
     expect(player(runtime, "carol").roundActive).toBe(false);
+  });
+
+  it("waits for sudden death when one of two tied leaders is reconnecting", () => {
+    const runtime = makeRuntime(true);
+    player(runtime, "alice").roundWins = 1;
+    const bob = player(runtime, "bob");
+    bob.roundWins = 1;
+    bob.connected = false;
+    bob.roundActive = false;
+    runtime.phase = "round-result";
+    runtime.roundNumber = 3;
+    runtime.resultsEndsAt = 0;
+    runtime.suddenDeath = false;
+
+    updateRuntime(runtime, 10_000);
+
+    expect(runtime.phase).toBe("preparing");
+    expect(runtime.suddenDeath).toBe(true);
+    expect(player(runtime, "alice").participating).toBe(true);
+    expect(bob.participating).toBe(true);
+    expect(bob.roundActive).toBe(false);
   });
 
   it("continues the round for remaining players when one disconnects", () => {

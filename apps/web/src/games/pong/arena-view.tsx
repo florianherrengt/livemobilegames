@@ -323,11 +323,23 @@ export function ArenaView({
   const canControl =
     (state.phase === "countdown" || state.phase === "running") &&
     local !== undefined &&
+    !connection.reconnecting &&
     local.connectionStatus === "connected";
   const players = [...state.players.values()].sort((a, b) => a.joinedOrder - b.joinedOrder);
   const maxScore = players.reduce((highest, player) => Math.max(highest, player.score), 0);
   const scoresSignature = players.map((player) => `${player.name}:${player.score}`).join("|");
   const resultSignature = `${state.phase}:${[...(state.result?.winnerSessionIds ?? [])].join("|")}`;
+
+  useEffect(() => {
+    if (!canControl) {
+      // Reconnection can disable controls without a pointer-cancel event.
+      // Clear the local gesture so a new pointer works once the socket is
+      // active again; the room already clears the authoritative target.
+      activePointerIdRef.current = null;
+      directionRef.current = "none";
+      setDirection("none");
+    }
+  }, [canControl]);
 
   useEffect(() => {
     if (previousScoresRef.current !== "" && scoresSignature !== previousScoresRef.current) {
@@ -418,11 +430,15 @@ export function ArenaView({
     if (!canControl) {
       return;
     }
+    // The top and right world edges run opposite to screen-left/screen-right
+    // after their arena rotations. Convert the visual target back into that
+    // player's authoritative edge coordinate before sending it.
+    const target = local.worldEdge === "top" || local.worldEdge === "right" ? 1 - value : value;
     sequenceRef.current += 1;
     connection.room.send(PONG_MESSAGE_TYPES.paddleMove, {
       type: "paddle_move",
       sequence: sequenceRef.current,
-      target: value,
+      target,
     });
   };
 

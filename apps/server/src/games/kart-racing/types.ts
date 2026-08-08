@@ -8,6 +8,7 @@ export interface KartRacingSettings {
   countdownMs: number;
   resultsMs: number;
   raceFinishTimeoutMs: number;
+  raceMaxDurationMs: number;
   maxSpeed: number;
   acceleration: number;
   steeringStrength: number;

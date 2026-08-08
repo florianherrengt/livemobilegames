@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-
+import { matchMaker } from "@colyseus/core";
 import {
   type ISeatReservation,
   LobbyRoomState,
@@ -9,7 +9,6 @@ import {
   ROOM_MESSAGE_TYPES,
   type RoomTransition,
 } from "@phone-party/protocol";
-import { matchMaker } from "colyseus";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createGameRegistry } from "../../../src/games/game-registry.js";
 import {
@@ -540,6 +539,35 @@ describe("Memory Path room integration", () => {
     await waitFor(
       () => [...(alice.state.roundResult?.winnerSessionIds ?? [])].join("|") === bobSessionId,
     );
+  }, 90_000);
+
+  it("rejects play again when a permanent departure leaves fewer than two players", async () => {
+    const { reservations } = await createDirectRoom();
+    const alice = await consumeGame(test, reservations[0]);
+    const bob = await consumeGame(test, reservations[1]);
+    const mover = makeMover();
+
+    for (
+      let roundNumber = 1;
+      roundNumber <= MEMORY_PATH_CONSTANTS.NORMAL_ROUNDS;
+      roundNumber += 1
+    ) {
+      await waitForPhase(alice, "racing");
+      await driveToFinish(alice, roundNumber, alice.sessionId, mover);
+      if (roundNumber < MEMORY_PATH_CONSTANTS.NORMAL_ROUNDS) {
+        await waitForPhase(alice, "preparing");
+      }
+    }
+    await waitForPhase(alice, "match-result", 15_000);
+
+    await bob.leave();
+    await waitFor(() => alice.state.players.size === 1, 5_000);
+    const notEnoughPlayers = waitForRoomError(alice, "NOT_ENOUGH_PLAYERS");
+    alice.send(ROOM_MESSAGE_TYPES.playAgain, {});
+    await notEnoughPlayers;
+
+    expect(alice.state.phase).toBe("match-result");
+    expect(alice.state.matchResult).not.toBeNull();
   }, 90_000);
 
   it("rejects direct matchmaking creation without the server room token", async () => {

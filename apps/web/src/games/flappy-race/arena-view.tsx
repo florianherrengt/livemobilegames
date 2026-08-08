@@ -339,6 +339,7 @@ export function ArenaView({
         data-testid="flappy-race-arena"
         data-phase={state.phase}
         data-round={state.roundNumber}
+        data-self-session={selfSessionId}
         data-spectating={isSpectator}
         data-openings={JSON.stringify([...state.obstacleOpenings])}
         data-winners={JSON.stringify([...state.roundWinnerSessionIds])}

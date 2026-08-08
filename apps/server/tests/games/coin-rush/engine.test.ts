@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   addPlayer,
+  prepareRound,
+  resetForNewMatch,
   startMatch,
   startPlaying,
   updateRuntime,
@@ -104,6 +106,59 @@ describe("Coin Rush round lifecycle", () => {
     expect(alice.roundWins).toBe(1);
   });
 
+  it("clears round-local state for players who are disconnected between rounds", () => {
+    const runtime = connectedRuntime();
+    startMatch(runtime, 1_000);
+    const alice = player(runtime, "a");
+    alice.connected = false;
+    alice.alive = true;
+    alice.respawning = true;
+    alice.respawnEndsAt = 9_000;
+    alice.moving = true;
+    alice.push = true;
+    alice.bouncing = true;
+    alice.deathType = "vehicle";
+    alice.diedAt = 8_000;
+    alice.score = 11;
+    alice.roundDeaths = 2;
+    alice.roundWins = 1;
+    alice.totalCoins = 11;
+    alice.deaths = 2;
+
+    prepareRound(runtime, 10_000, 2);
+
+    expect(alice).toMatchObject({
+      connected: false,
+      alive: false,
+      respawning: false,
+      respawnEndsAt: 0,
+      moving: false,
+      push: false,
+      bouncing: false,
+      deathType: "",
+      diedAt: 0,
+      score: 0,
+      roundDeaths: 0,
+      roundWins: 1,
+      totalCoins: 11,
+      deaths: 2,
+      suddenDeathEligible: false,
+    });
+  });
+
+  it("clears client sequence history before a rematch", () => {
+    const runtime = connectedRuntime();
+    const alice = player(runtime, "a");
+    alice.lastAcceptedSequence = 12;
+    alice.seenSequences.add(1);
+    alice.seenSequences.add(12);
+
+    resetForNewMatch(runtime);
+
+    expect(alice.lastAcceptedSequence).toBe(0);
+    expect(alice.seenSequences.size).toBe(0);
+  });
+
   it("plays exactly three rounds and then finishes with a result", () => {
     const runtime = connectedRuntime();
     let now = 1_000;
@@ -115,7 +170,13 @@ describe("Coin Rush round lifecycle", () => {
     for (let round = 1; round <= 3; round++) {
       expect(runtime.roundNumber).toBe(round);
       const alice = player(runtime, "a");
-      alice.score = 10;
+      alice.score = 9;
+      const coin = runtime.coins.get("1");
+      if (!coin) {
+        throw new Error("missing one-point coin");
+      }
+      coin.col = alice.x;
+      coin.row = alice.y;
       updateRuntime(runtime, now + 1);
       expect(runtime.phase).toBe("round-result");
       expect(runtime.roundWinnerSessionIds).toEqual(["a"]);

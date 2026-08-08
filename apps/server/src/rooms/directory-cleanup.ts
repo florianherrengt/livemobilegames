@@ -1,4 +1,4 @@
-import type { Room } from "colyseus";
+import type { Room } from "@colyseus/core";
 
 import type { RoomDirectory } from "./room-directory.js";
 

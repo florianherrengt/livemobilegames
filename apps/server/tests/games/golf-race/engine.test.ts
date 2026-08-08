@@ -5,6 +5,7 @@ import { loadGolfCourse } from "../../../src/games/golf-race/course.js";
 import {
   addPlayer,
   collisionImmune,
+  finishMatch,
   resetForNewMatch,
   startMatch,
   submitShot,
@@ -136,6 +137,50 @@ describe("Golf turn and round order", () => {
     }
     expect(shotTurn).toEqual(["player-0", "player-1", "player-2"]);
     expect(runtime.roundNumber).toBe(1);
+  });
+
+  it("ends an idle round by deadline instead of repeating missed turns forever", () => {
+    const runtime = makeGolfRuntime();
+    addPlayers(runtime, 2);
+    beginMatch(runtime, 0);
+
+    for (let now = 0; now <= 60_000 && runtime.phase !== "round-result"; now += 100) {
+      updateRuntime(runtime, now);
+    }
+
+    expect(runtime.phase).toBe("round-result");
+    expect([...runtime.players.values()].every((player) => player.finished)).toBe(true);
+    expect([...runtime.players.values()].every((player) => player.finishedRank > 0)).toBe(true);
+  });
+
+  it("does not reactivate a permanently departed finisher in later rounds or a rematch", () => {
+    const runtime = makeGolfRuntime();
+    addPlayers(runtime, 3);
+    beginMatch(runtime, 0);
+    const players = [...runtime.players.values()];
+    players.forEach((player, index) => {
+      player.finished = true;
+      player.finishedRank = index + 1;
+    });
+    runtime.phase = "aiming";
+    runtime.aimingEndsAt = 0;
+    runtime.currentTurnSessionId = "";
+
+    updateRuntime(runtime, 1_000);
+    expect(runtime.phase).toBe("round-result");
+
+    const departed = playerAt(runtime, "player-1");
+    departed.connected = false;
+    departed.removed = true;
+    updateRuntime(runtime, runtime.resultsEndsAt + 1);
+
+    expect(runtime.roundNumber).toBe(2);
+    expect(runtime.turnOrder).not.toContain(departed.sessionId);
+    expect(departed.removed).toBe(true);
+
+    runtime.phase = "finished";
+    resetForNewMatch(runtime);
+    expect(runtime.players.has(departed.sessionId)).toBe(false);
   });
 });
 
@@ -451,6 +496,24 @@ describe("Golf physics, hazards, and progress", () => {
 });
 
 describe("Golf complete match", () => {
+  it("shares the win when players finish the match on the same point total", () => {
+    const runtime = makeGolfRuntime();
+    addPlayers(runtime, 3);
+    const alice = playerAt(runtime, "player-0");
+    const bob = playerAt(runtime, "player-1");
+    const carol = playerAt(runtime, "player-2");
+    alice.matchPoints = 10;
+    alice.roundWins = 1;
+    bob.matchPoints = 10;
+    bob.roundWins = 3;
+    carol.matchPoints = 7;
+
+    finishMatch(runtime);
+
+    expect(runtime.result?.winnerSessionIds.sort()).toEqual(["player-0", "player-1"]);
+    expect(runtime.result?.leaderboard.map((entry) => entry.rank)).toEqual([1, 1, 3]);
+  });
+
   it("runs a deterministic full match to final results", () => {
     const runtime = makeGolfRuntime();
     addPlayers(runtime, 2);

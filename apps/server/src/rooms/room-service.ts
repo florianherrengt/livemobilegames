@@ -1,3 +1,4 @@
+import { matchMaker } from "@colyseus/core";
 import {
   type CreateRoomResponse,
   type JoinRoomResponse,
@@ -5,7 +6,6 @@ import {
   type RoomOptions,
   type SeatOptions,
 } from "@phone-party/protocol";
-import { matchMaker } from "colyseus";
 
 import { AppError } from "../errors.js";
 import type { Logger } from "../logging.js";

@@ -56,15 +56,25 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
     "/",
     createRoomRoutes({
       roomService: deps.roomService,
-      createRoomLimiter: new RateLimiterMemory({
-        points: 10,
+      createRoomPlayerLimiter: new RateLimiterMemory({
+        points: deps.config.createRoomPlayerRateLimit,
         duration: 60,
-        keyPrefix: "create-room",
+        keyPrefix: "create-room-player",
       }),
-      joinRoomLimiter: new RateLimiterMemory({
-        points: 20,
+      createRoomAddressLimiter: new RateLimiterMemory({
+        points: deps.config.createRoomAddressRateLimit,
         duration: 60,
-        keyPrefix: "join-room",
+        keyPrefix: "create-room-address",
+      }),
+      joinRoomPlayerLimiter: new RateLimiterMemory({
+        points: deps.config.joinRoomPlayerRateLimit,
+        duration: 60,
+        keyPrefix: "join-room-player",
+      }),
+      joinRoomAddressLimiter: new RateLimiterMemory({
+        points: deps.config.joinRoomAddressRateLimit,
+        duration: 60,
+        keyPrefix: "join-room-address",
       }),
     }),
   );

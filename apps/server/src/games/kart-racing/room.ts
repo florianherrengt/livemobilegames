@@ -1,3 +1,4 @@
+import { type Client, ErrorCode, Room, ServerError } from "@colyseus/core";
 import {
   KART_RACING_GAME_ID,
   KART_RACING_MESSAGE_TYPES,
@@ -8,7 +9,6 @@ import {
   seatOptionsSchema,
   startGameRequestSchema,
 } from "@phone-party/protocol";
-import { type Client, ErrorCode, Room, ServerError } from "colyseus";
 
 import { KART_RACING_SERVER_CONSTANTS } from "./constants.js";
 import { endRaceIfAllDisconnected, fireProjectile, updateRuntime } from "./engine.js";

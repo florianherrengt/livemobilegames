@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Paper, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Chip, Paper, Stack, Typography } from "@mui/material";
 import { type CapitalPinState, GAME_MESSAGE_TYPES } from "@phone-party/protocol";
 import { useEffect, useRef, useState } from "react";
 
@@ -48,6 +48,7 @@ export function RoundView({
 
   const self = state.players.get(selfSessionId);
   const submitted = self?.submitted ?? false;
+  const connected = !connection.reconnecting && self?.connectionStatus === "connected";
   const secondsLeft = Math.max(0, Math.ceil((state.roundEndsAt - now) / 1000));
 
   const handleMapClick = (lngLat: LngLat): void => {
@@ -92,6 +93,7 @@ export function RoundView({
         sx={{
           p: 1.5,
           display: "flex",
+          flexWrap: "wrap",
           justifyContent: "space-between",
           alignItems: "center",
           gap: 1,
@@ -103,6 +105,7 @@ export function RoundView({
         <Typography variant="body2" aria-live="polite" sx={{ fontWeight: 700 }}>
           {state.currentCapitalName}
         </Typography>
+        {!connected && <Chip label="Reconnecting…" size="small" color="warning" />}
         <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>
           {secondsLeft}s
         </Typography>
@@ -117,7 +120,7 @@ export function RoundView({
           flexDirection: "column",
         }}
       >
-        <GameMap onMapClick={handleMapClick} interactive={!submitted}>
+        <GameMap onMapClick={handleMapClick} interactive={connected && !submitted}>
           {guess !== null && (
             <MapMarker longitude={guess.lng} latitude={guess.lat} colour="#4363d8" />
           )}
@@ -145,7 +148,7 @@ export function RoundView({
       <Paper square sx={{ p: 1.5 }}>
         <Stack spacing={1}>
           {roomError !== null && <Alert severity="error">{roomError}</Alert>}
-          <Button fullWidth disabled={submitted || guess === null} onClick={submit}>
+          <Button fullWidth disabled={!connected || submitted || guess === null} onClick={submit}>
             {submitted ? "Answer locked" : "Lock answer"}
           </Button>
         </Stack>

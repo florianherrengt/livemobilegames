@@ -7,6 +7,35 @@ async function openPhone(browser: Browser): Promise<Page> {
     hasTouch: true,
     deviceScaleFactor: 2,
   });
+  await context.addInitScript(() => {
+    const NativeWebSocket = window.WebSocket;
+    const sockets: WebSocket[] = [];
+    class TrackedWebSocket extends NativeWebSocket {
+      constructor(url: string | URL, protocols: string | string[] = []) {
+        super(url, protocols);
+        sockets.push(this);
+      }
+    }
+    Object.defineProperty(window, "WebSocket", { configurable: true, value: TrackedWebSocket });
+    const testWindow = window as typeof window & {
+      __dropPartySocket?: () => boolean;
+      __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+    };
+    testWindow.__dropPartySocket = () => {
+      const socket = [...sockets]
+        .reverse()
+        .find((candidate) => candidate.readyState === NativeWebSocket.OPEN);
+      if (socket === undefined) {
+        return false;
+      }
+      socket.close();
+      return true;
+    };
+    testWindow.__partySocketSnapshot = () => ({
+      count: sockets.length,
+      latestOpen: sockets.at(-1)?.readyState === NativeWebSocket.OPEN,
+    });
+  });
   return context.newPage();
 }
 
@@ -115,11 +144,14 @@ async function shootFromActivePlayer(page: Page): Promise<boolean> {
   return true;
 }
 
-async function playMatch(page: Page): Promise<void> {
+type MatchStats = { shots: number; maxRound: number };
+
+async function playMatch(page: Page): Promise<MatchStats> {
   const deadline = Date.now() + 180_000;
+  const stats: MatchStats = { shots: 0, maxRound: 0 };
   while (Date.now() < deadline) {
     if ((await page.getByTestId("golf-race-leaderboard").count()) > 0) {
-      return;
+      return stats;
     }
     const arenaLocator = arena(page);
     if ((await arenaLocator.count()) === 0) {
@@ -127,8 +159,12 @@ async function playMatch(page: Page): Promise<void> {
       continue;
     }
     const phase = await arenaLocator.getAttribute("data-phase");
+    stats.maxRound = Math.max(
+      stats.maxRound,
+      Number((await arenaLocator.getAttribute("data-round")) ?? 0),
+    );
     if (phase === "finished") {
-      return;
+      return stats;
     }
     if (phase === "aiming") {
       const shot = await shootFromActivePlayer(page);
@@ -136,12 +172,42 @@ async function playMatch(page: Page): Promise<void> {
         await page.waitForTimeout(100);
         continue;
       }
+      stats.shots += 1;
       await page.waitForTimeout(250);
       continue;
     }
     await page.waitForTimeout(100);
   }
   throw new Error("Match did not finish in time");
+}
+
+async function dropSocketAndObserveReconnect(page: Page): Promise<void> {
+  const beforeSocketCount = await page.evaluate(
+    () =>
+      (
+        window as typeof window & {
+          __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+        }
+      ).__partySocketSnapshot?.().count ?? 0,
+  );
+  const dropped = await page.evaluate(
+    () =>
+      (window as typeof window & { __dropPartySocket?: () => boolean }).__dropPartySocket?.() ??
+      false,
+  );
+  expect(dropped).toBe(true);
+  await page.waitForFunction(
+    (previousCount) => {
+      const snapshot = (
+        window as typeof window & {
+          __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+        }
+      ).__partySocketSnapshot?.();
+      return snapshot !== undefined && snapshot.count > previousCount && snapshot.latestOpen;
+    },
+    beforeSocketCount,
+    { timeout: 10_000 },
+  );
 }
 
 test("two phones play a deterministic Golf Race match", async ({ browser }) => {
@@ -171,7 +237,27 @@ test("two phones play a deterministic Golf Race match", async ({ browser }) => {
   expect(aliceRound).toBe("1");
   expect(bobRound).toBe("1");
 
-  await Promise.all([playMatch(alice), playMatch(bob)]);
+  // The running room stays locked against late joins.
+  const carol = await openPhone(browser);
+  await carol.goto("/");
+  await carol.locator("#room-code").fill(code);
+  await carol.locator("#join-player-name").fill("Carol");
+  await carol.getByRole("button", { name: "Join room" }).click();
+  await expect(carol.getByRole("alert")).toContainText(/cannot accept new players/i);
+  await carol.close();
+
+  // A transient socket loss reconnects the same phone and it resumes play.
+  await arena(alice).waitForFunction((element) => element.dataset.phase === "aiming", null, {
+    timeout: 15_000,
+  });
+  const bobSessionId = await arena(bob).getAttribute("data-self-session");
+  await dropSocketAndObserveReconnect(bob);
+  await expect(arena(bob)).toHaveAttribute("data-self-session", bobSessionId ?? "", {
+    timeout: 10_000,
+  });
+  await expect(arena(bob)).toHaveAttribute("data-local-connection", "connected");
+
+  const [aliceStats, bobStats] = await Promise.all([playMatch(alice), playMatch(bob)]);
 
   await expect(alice.getByTestId("golf-race-leaderboard")).toBeVisible({ timeout: 20_000 });
   await expect(bob.getByTestId("golf-race-leaderboard")).toBeVisible({ timeout: 20_000 });
@@ -181,6 +267,16 @@ test("two phones play a deterministic Golf Race match", async ({ browser }) => {
   expect(await bobRows.count()).toBe(2);
   expect(await aliceRows.nth(0).textContent()).toBe(await bobRows.nth(0).textContent());
   expect(await aliceRows.nth(1).textContent()).toBe(await bobRows.nth(1).textContent());
+  expect(aliceStats.maxRound).toBe(5);
+  expect(bobStats.maxRound).toBe(5);
+  expect(aliceStats.shots).toBeGreaterThan(0);
+  expect(bobStats.shots).toBeGreaterThan(0);
+  const scoreTotal = (await aliceRows.allTextContents()).reduce((total, row) => {
+    const score = row.match(/(\d+) pts/)?.[1];
+    return total + Number(score ?? 0);
+  }, 0);
+  expect(scoreTotal).toBe(15);
+  await expect(bob.getByText("Waiting for the host to play again…")).toBeVisible();
 
   // Host rematch returns to a fresh round 1.
   await alice.getByRole("button", { name: "Play again" }).click();

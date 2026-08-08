@@ -58,22 +58,12 @@ export function resolveTimeoutWinner(players: readonly RuntimePlayer[]): string 
 }
 
 export function matchLeaders(runtime: MemoryPathRuntime): RuntimePlayer[] {
-  const participants = [...runtime.players.values()].filter((player) => player.connected);
+  // Players inside reconnection grace remain match participants. Include them
+  // when deciding whether sudden death is required; onLeave removes permanent
+  // departures from the runtime before this decision is made.
+  const participants = [...runtime.players.values()];
   const maxWins = Math.max(0, ...participants.map((player) => player.roundWins));
   return participants
-    .filter((player) => player.roundWins === maxWins)
-    .sort((a, b) => a.joinedOrder - b.joinedOrder);
-}
-
-/**
- * Every leader by round wins, including players in the reconnection grace
- * window. Sudden-death participants are decided from this set so a tied leader
- * who briefly dropped during the previous round can rejoin and race.
- */
-export function allMatchLeaders(runtime: MemoryPathRuntime): RuntimePlayer[] {
-  const players = [...runtime.players.values()];
-  const maxWins = Math.max(0, ...players.map((player) => player.roundWins));
-  return players
     .filter((player) => player.roundWins === maxWins)
     .sort((a, b) => a.joinedOrder - b.joinedOrder);
 }

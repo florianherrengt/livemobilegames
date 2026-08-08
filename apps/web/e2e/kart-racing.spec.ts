@@ -8,6 +8,36 @@ async function openPhone(browser: Browser): Promise<Page> {
     hasTouch: true,
     deviceScaleFactor: 2,
   });
+  await context.addInitScript(() => {
+    window.sessionStorage.setItem("kart-racing-e2e-driver", "1");
+    const NativeWebSocket = window.WebSocket;
+    const sockets: WebSocket[] = [];
+    class TrackedWebSocket extends NativeWebSocket {
+      constructor(url: string | URL, protocols: string | string[] = []) {
+        super(url, protocols);
+        sockets.push(this);
+      }
+    }
+    Object.defineProperty(window, "WebSocket", { configurable: true, value: TrackedWebSocket });
+    const testWindow = window as typeof window & {
+      __dropPartySocket?: () => boolean;
+      __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+    };
+    testWindow.__dropPartySocket = () => {
+      const socket = [...sockets]
+        .reverse()
+        .find((candidate) => candidate.readyState === NativeWebSocket.OPEN);
+      if (socket === undefined) {
+        return false;
+      }
+      socket.close();
+      return true;
+    };
+    testWindow.__partySocketSnapshot = () => ({
+      count: sockets.length,
+      latestOpen: sockets.at(-1)?.readyState === NativeWebSocket.OPEN,
+    });
+  });
   return context.newPage();
 }
 
@@ -50,11 +80,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-async function readNumber(page: Page, attribute: string): Promise<number> {
-  const value = await arena(page).getAttribute(attribute);
-  return Number(value ?? 0);
-}
-
 function nearestCenterlineIndex(x: number, y: number): number {
   let bestIndex = 0;
   let bestDistance = Number.POSITIVE_INFINITY;
@@ -69,25 +94,72 @@ function nearestCenterlineIndex(x: number, y: number): number {
   return bestIndex;
 }
 
-/**
- * A scripted phone player: reads the public track lookahead the renderer
- * exposes, converts it to a steering offset, and drives through the game's
- * automation hook, which sends exactly the same intent messages the touch
- * controls send. Touch/swipe recognition itself is covered by component
- * tests; this exercises the full authoritative server loop in real browsers.
- */
-async function drivePage(page: Page, maxMs: number): Promise<void> {
+type DriveStats = {
+  races: Set<number>;
+  resultRaces: Set<number>;
+  maxLap: number;
+  maxCheckpoint: number;
+  maxSpeed: number;
+  shots: number;
+  sawAmmo: boolean;
+  sawProjectile: boolean;
+  sawRespawn: boolean;
+};
+
+/** Drives one real phone through every race using ordinary steer/shoot intents. */
+async function drivePage(page: Page, maxMs: number): Promise<DriveStats> {
   const startedAt = Date.now();
   let lastShootAt = 0;
+  const stats: DriveStats = {
+    races: new Set(),
+    resultRaces: new Set(),
+    maxLap: 0,
+    maxCheckpoint: 0,
+    maxSpeed: 0,
+    shots: 0,
+    sawAmmo: false,
+    sawProjectile: false,
+    sawRespawn: false,
+  };
   while (Date.now() - startedAt < maxMs) {
-    const phase = await arena(page).getAttribute("data-phase");
-    if (phase === "finished") {
-      break;
+    if ((await page.getByTestId("kart-racing-leaderboard").count()) > 0) {
+      return stats;
     }
+    if ((await arena(page).count()) === 0) {
+      const resultHeading = page.getByRole("heading", { name: /^Race \d+ result$/ });
+      if ((await resultHeading.count()) > 0) {
+        const race = Number((await resultHeading.textContent())?.match(/\d+/)?.[0] ?? 0);
+        if (race > 0) {
+          stats.resultRaces.add(race);
+        }
+      }
+      await page.waitForTimeout(80);
+      continue;
+    }
+    const snapshot = await arena(page).evaluate((element) => ({
+      phase: element.dataset.phase ?? "",
+      race: Number(element.dataset.race ?? 0),
+      x: Number(element.dataset.localX ?? 0),
+      y: Number(element.dataset.localY ?? 0),
+      heading: Number(element.dataset.localHeading ?? 0),
+      speed: Number(element.dataset.localSpeed ?? 0),
+      lap: Number(element.dataset.localLap ?? 0),
+      checkpoint: Number(element.dataset.localCheckpoint ?? 0),
+      ammo: element.dataset.localAmmo === "true",
+      projectileCount: Number(element.dataset.projectileCount ?? 0),
+      respawn: Number(element.dataset.localRespawn ?? 0),
+    }));
+    stats.races.add(snapshot.race);
+    stats.maxLap = Math.max(stats.maxLap, snapshot.lap);
+    stats.maxCheckpoint = Math.max(stats.maxCheckpoint, snapshot.checkpoint);
+    stats.maxSpeed = Math.max(stats.maxSpeed, snapshot.speed);
+    stats.sawAmmo ||= snapshot.ammo;
+    stats.sawProjectile ||= snapshot.projectileCount > 0;
+    stats.sawRespawn ||= snapshot.respawn > 0;
+
+    const phase = snapshot.phase;
     if (phase === "countdown" || phase === "racing") {
-      const x = await readNumber(page, "data-local-x");
-      const y = await readNumber(page, "data-local-y");
-      const heading = await readNumber(page, "data-local-heading");
+      const { x, y, heading } = snapshot;
       const nearest = nearestRoadPoint(KART_RACING_TRACK, { x, y });
       const target = pointAlongCenterline(
         KART_RACING_TRACK,
@@ -124,8 +196,7 @@ async function drivePage(page: Page, maxMs: number): Promise<void> {
         drive?.steer(value);
       }, steering);
 
-      const ammo = (await arena(page).getAttribute("data-local-ammo")) === "true";
-      if (ammo && Date.now() - lastShootAt > 4_000) {
+      if (snapshot.ammo && Date.now() - lastShootAt > 4_000) {
         await page.evaluate(() => {
           const drive = (
             window as unknown as {
@@ -135,6 +206,7 @@ async function drivePage(page: Page, maxMs: number): Promise<void> {
           drive?.shoot();
         });
         lastShootAt = Date.now();
+        stats.shots += 1;
       }
       await page.waitForTimeout(80);
     } else {
@@ -149,12 +221,42 @@ async function drivePage(page: Page, maxMs: number): Promise<void> {
       await page.waitForTimeout(80);
     }
   }
+  throw new Error(`Kart Racing did not finish within ${maxMs}ms`);
 }
 
-test("two phones start a Kart Racing match with synced state and working controls", async ({
+async function dropSocketAndObserveReconnect(page: Page): Promise<void> {
+  const beforeSocketCount = await page.evaluate(
+    () =>
+      (
+        window as typeof window & {
+          __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+        }
+      ).__partySocketSnapshot?.().count ?? 0,
+  );
+  const dropped = await page.evaluate(
+    () =>
+      (window as typeof window & { __dropPartySocket?: () => boolean }).__dropPartySocket?.() ??
+      false,
+  );
+  expect(dropped).toBe(true);
+  await page.waitForFunction(
+    (previousCount) => {
+      const snapshot = (
+        window as typeof window & {
+          __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+        }
+      ).__partySocketSnapshot?.();
+      return snapshot !== undefined && snapshot.count > previousCount && snapshot.latestOpen;
+    },
+    beforeSocketCount,
+    { timeout: 10_000 },
+  );
+}
+
+test("two phones complete all three Kart Racing races with authoritative results", async ({
   browser,
 }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
 
   const alice = await openPhone(browser);
   const bob = await openPhone(browser);
@@ -176,25 +278,76 @@ test("two phones start a Kart Racing match with synced state and working control
   await waitForPhase(bob, "racing", 15_000);
   await expect(alice.getByText("How to play Kart Racing")).not.toBeVisible();
 
-  // Drive both phones through the live authoritative loop for a bounded
-  // period. The scripted driver exercises steering and shooting intents; the
-  // full three-race match and final results are covered by the real-client
-  // integration suite, which is more deterministic than browser pointer
-  // automation.
-  await Promise.all([drivePage(alice, 20_000), drivePage(bob, 20_000)]);
+  // The server rejects a forged shoot intent before a crate has supplied ammo.
+  await expect(arena(alice)).toHaveAttribute("data-local-ammo", "false");
+  await alice.evaluate(() => {
+    (
+      window as unknown as {
+        __kartRacingDrive?: { shoot: () => void };
+      }
+    ).__kartRacingDrive?.shoot();
+  });
+  await expect(alice.getByText("No ammo — collect a crate.")).toBeVisible();
 
-  const aliceRace = await arena(alice).getAttribute("data-race");
-  const bobRace = await arena(bob).getAttribute("data-race");
-  expect(aliceRace).toBe(bobRace);
-  expect(aliceRace).not.toBeNull();
-  const alicePosition = await arena(alice).getAttribute("data-local-position");
-  const bobPosition = await arena(bob).getAttribute("data-local-position");
-  expect(["1", "2"]).toContain(alicePosition);
-  expect(["1", "2"]).toContain(bobPosition);
-  const alicePhase = await arena(alice).getAttribute("data-phase");
-  expect(["racing", "race-result", "countdown"]).toContain(alicePhase);
-  const bobPhase = await arena(bob).getAttribute("data-phase");
-  expect(["racing", "race-result", "countdown"]).toContain(bobPhase);
+  // A third independent browser cannot join the locked running game.
+  const carol = await openPhone(browser);
+  await carol.goto("/");
+  await carol.locator("#room-code").fill(code);
+  await carol.locator("#join-player-name").fill("Carol");
+  await carol.getByRole("button", { name: "Join room" }).click();
+  await expect(carol.getByRole("alert")).toContainText(/cannot accept new players/i);
+  await carol.close();
+
+  // A dropped kart reconnects under the same session and enters the
+  // authoritative respawn path before continuing the race.
+  const bobSessionId = await arena(bob).getAttribute("data-self-session");
+  await dropSocketAndObserveReconnect(bob);
+  await expect(arena(bob)).toHaveAttribute("data-self-session", bobSessionId ?? "", {
+    timeout: 10_000,
+  });
+  await expect(arena(bob)).toHaveAttribute("data-local-connection", "connected");
+  await arena(bob).waitForFunction(
+    (element) => Number(element.dataset.localRespawn ?? 0) > 0,
+    null,
+    { timeout: 5_000 },
+  );
+
+  const [aliceStats, bobStats] = await Promise.all([
+    drivePage(alice, 130_000),
+    drivePage(bob, 130_000),
+  ]);
+
+  await expect(alice.getByTestId("kart-racing-leaderboard")).toBeVisible();
+  await expect(bob.getByTestId("kart-racing-leaderboard")).toBeVisible();
+  const aliceRows = alice.getByTestId("kart-racing-leaderboard").locator("li");
+  const bobRows = bob.getByTestId("kart-racing-leaderboard").locator("li");
+  await expect(aliceRows).toHaveCount(2);
+  await expect(bobRows).toHaveCount(2);
+  expect(await aliceRows.allTextContents()).toEqual(await bobRows.allTextContents());
+  const totalPoints = (await aliceRows.allTextContents()).reduce((total, row) => {
+    const points = row.match(/(\d+) pts/)?.[1];
+    return total + Number(points ?? 0);
+  }, 0);
+  expect(totalPoints).toBe(42);
+  expect([...aliceStats.races].sort()).toEqual([1, 2, 3]);
+  expect([...bobStats.races].sort()).toEqual([1, 2, 3]);
+  expect([...aliceStats.resultRaces].sort()).toEqual([1, 2, 3]);
+  expect([...bobStats.resultRaces].sort()).toEqual([1, 2, 3]);
+  expect(aliceStats.maxSpeed).toBeGreaterThan(0);
+  expect(bobStats.maxSpeed).toBeGreaterThan(0);
+  expect(aliceStats.maxLap > 1 || aliceStats.maxCheckpoint > 0).toBe(true);
+  expect(bobStats.maxLap > 1 || bobStats.maxCheckpoint > 0).toBe(true);
+  expect(aliceStats.shots + bobStats.shots).toBeGreaterThan(0);
+  expect(aliceStats.sawAmmo || bobStats.sawAmmo).toBe(true);
+  expect(aliceStats.sawProjectile || bobStats.sawProjectile).toBe(true);
+  await expect(bob.getByText("Waiting for the host to play again…")).toBeVisible();
+
+  // Host rematch resets both phones to race one.
+  await alice.getByRole("button", { name: "Play again" }).click();
+  await waitForPhase(alice, "countdown", 15_000);
+  await waitForPhase(bob, "countdown", 15_000);
+  await expect(arena(alice)).toHaveAttribute("data-race", "1");
+  await expect(arena(bob)).toHaveAttribute("data-race", "1");
 
   // The course stays usable at the 320px minimum width without page scroll.
   for (const page of [alice, bob]) {

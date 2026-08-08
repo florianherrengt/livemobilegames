@@ -1,3 +1,4 @@
+import { type Client, ErrorCode, Room, ServerError } from "@colyseus/core";
 import {
   FALLING_PLATFORMS_GAME_ID,
   FALLING_PLATFORMS_MESSAGE_TYPES,
@@ -7,7 +8,6 @@ import {
   seatOptionsSchema,
   startGameRequestSchema,
 } from "@phone-party/protocol";
-import { type Client, ErrorCode, Room, ServerError } from "colyseus";
 
 import { FALLING_PLATFORMS_SERVER_CONSTANTS } from "./constants.js";
 import {
@@ -315,7 +315,12 @@ export class FallingPlatformsRoom extends Room<{ state: FallingPlatformsState }>
   }
 
   #connectedRosterSize(): number {
-    return this.#roster.filter((player) => player.connectedSessionId !== null).length;
+    return this.#roster.filter((player) => {
+      if (player.connectedSessionId === null) {
+        return false;
+      }
+      return this.#engine.players.get(player.connectedSessionId)?.connected === true;
+    }).length;
   }
 
   #clearTransitionTimer(): void {

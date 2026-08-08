@@ -1,6 +1,6 @@
+import { type Client, ErrorCode, Room, ServerError } from "@colyseus/core";
 import { MapSchema, Schema, type } from "@colyseus/schema";
 import { type GameManifest, roomOptionsSchema, seatOptionsSchema } from "@phone-party/protocol";
-import { type Client, ErrorCode, Room, ServerError } from "colyseus";
 
 import type { GameDefinition } from "../../src/games/game-definition.js";
 

@@ -164,6 +164,10 @@ function LobbyView({
 }
 
 function CountdownView({ state }: { state: FallingPlatformsState }) {
+  const connectedPlayerCount = [...state.players.values()].filter(
+    (player) => player.connected,
+  ).length;
+
   return (
     <Box
       component="main"
@@ -185,7 +189,7 @@ function CountdownView({ state }: { state: FallingPlatformsState }) {
         Round {state.roundNumber} starts automatically
       </Typography>
       <Typography color="text.secondary" align="center" sx={{ mt: 2 }} aria-live="polite">
-        {state.players.size} players connected
+        {connectedPlayerCount} {connectedPlayerCount === 1 ? "player" : "players"} connected
       </Typography>
       <HowToPlay
         title="How to play Falling Platforms"

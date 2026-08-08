@@ -146,7 +146,11 @@ function FinishedView({
   const isHost = state.hostSessionId === selfSessionId;
   const winnerNames = result
     ? result.winnerSessionIds
-        .map((sessionId) => state.players.get(sessionId)?.name)
+        .map(
+          (sessionId) =>
+            state.players.get(sessionId)?.name ??
+            result.leaderboard.find((entry) => entry.sessionId === sessionId)?.label,
+        )
         .filter((name): name is string => name !== undefined)
     : [];
   const headline =

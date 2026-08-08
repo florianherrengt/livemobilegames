@@ -56,6 +56,16 @@ export function DrawingCanvas({
   interactiveRef.current = interactive;
 
   useEffect(() => {
+    if (!interactive) {
+      // A transport drop can disable the canvas without a browser
+      // pointer-cancel event. Discard the unsent local gesture so a fresh
+      // pointer can start drawing after reconnection.
+      activePointerRef.current = null;
+      draftRef.current = null;
+    }
+  }, [interactive]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) {

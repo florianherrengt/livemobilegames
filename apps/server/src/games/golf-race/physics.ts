@@ -131,7 +131,7 @@ export function stepPhysics(
   dtSeconds: number,
   isCollisionImmune: (player: RuntimePlayer) => boolean,
 ): void {
-  const active = [...players.values()].filter((player) => !player.finished);
+  const active = [...players.values()].filter((player) => !player.removed && !player.finished);
   const damping = Math.exp(-config.DAMPING_PER_SECOND * dtSeconds);
   for (const player of active) {
     player.vx *= damping;

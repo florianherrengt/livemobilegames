@@ -192,6 +192,20 @@ describe("GolfRaceGameView", () => {
     expect(screen.getByText("3 pts")).toBeInTheDocument();
   });
 
+  it("identifies players ranked by the round deadline", () => {
+    const state = makeGolfRaceState("round-result");
+    const bob = state.players.get("bob-session");
+    if (bob === undefined) {
+      throw new Error("missing Bob fixture");
+    }
+    bob.timedOut = true;
+    const { connection } = makeRoomConnection(state);
+
+    render(<GolfRaceGameView connection={connection} state={state} selfSessionId="host-session" />);
+
+    expect(screen.getByText("timed out")).toBeInTheDocument();
+  });
+
   it("keeps the arena container overflow hidden for 320px layouts", () => {
     const state = makeGolfRaceState("aiming");
     const { connection } = makeRoomConnection(state);

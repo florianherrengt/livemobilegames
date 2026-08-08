@@ -14,6 +14,12 @@ const booleanFromEnv = z
   .enum(["true", "false"])
   .default("false")
   .transform((value) => value === "true");
+const rateLimitSchema = z.coerce.number().int().positive().max(100_000);
+const pathPrefixSchema = z
+  .string()
+  .trim()
+  .regex(/^\/[^\s/?#]+(?:\/[^\s/?#]+)*\/?$/, "COLYSEUS_PATH must be a non-root URL path prefix")
+  .transform((value) => value.replace(/\/$/, ""));
 
 export const configSchema = z.object({
   nodeEnv: z.enum(["development", "test", "production"]).default("development"),
@@ -21,8 +27,12 @@ export const configSchema = z.object({
   host: z.string().min(1).default("0.0.0.0"),
   cookieSecret: z.string().min(32, "COOKIE_SECRET must be at least 32 characters"),
   publicOrigin: z.string().url().default("http://localhost:5173"),
-  colyseusPath: z.string().regex(/^\//, "COLYSEUS_PATH must start with /").default("/colyseus"),
+  colyseusPath: pathPrefixSchema.default("/colyseus"),
   lobbyMaxClients: z.coerce.number().int().min(1).max(32).default(8),
+  createRoomPlayerRateLimit: rateLimitSchema.default(10),
+  createRoomAddressRateLimit: rateLimitSchema.default(60),
+  joinRoomPlayerRateLimit: rateLimitSchema.default(20),
+  joinRoomAddressRateLimit: rateLimitSchema.default(120),
   /** Shortens game round timings for integration and E2E suites. */
   e2eTestMode: booleanFromEnv,
   /** Optional E2E-only drawing turn duration; defaults to the game constant. */
@@ -43,6 +53,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     publicOrigin: env.PUBLIC_ORIGIN,
     colyseusPath: env.COLYSEUS_PATH,
     lobbyMaxClients: env.LOBBY_MAX_CLIENTS,
+    createRoomPlayerRateLimit: env.CREATE_ROOM_PLAYER_RATE_LIMIT,
+    createRoomAddressRateLimit: env.CREATE_ROOM_ADDRESS_RATE_LIMIT,
+    joinRoomPlayerRateLimit: env.JOIN_ROOM_PLAYER_RATE_LIMIT,
+    joinRoomAddressRateLimit: env.JOIN_ROOM_ADDRESS_RATE_LIMIT,
     e2eTestMode: env.E2E_TEST_MODE,
     e2eTurnDurationMs: env.E2E_TURN_DURATION_MS,
     capitalPinTransitionTimeoutMs: env.CAPITAL_PIN_TRANSITION_TIMEOUT_MS,

@@ -115,6 +115,75 @@ describe("Hono application", () => {
     expect(asRecord(body.room).code).toBe("ABC234");
   });
 
+  it("rate limits repeated room creation from one address without a retained cookie", async () => {
+    const app = createAppWithStub();
+    const responses: Response[] = [];
+
+    for (let attempt = 0; attempt < 61; attempt += 1) {
+      responses.push(
+        await app.request("/api/rooms", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ playerName: "Alice" }),
+        }),
+      );
+    }
+
+    expect(responses.slice(0, 60).every((response) => response.status === 201)).toBe(true);
+    expect(responses[60]?.status).toBe(429);
+    const body = asRecord(await responses[60]?.json());
+    expect(asRecord(body.error).code).toBe("RATE_LIMITED");
+  });
+
+  it("rate limits a retained anonymous player before the address ceiling", async () => {
+    const app = createAppWithStub();
+    const first = await app.request("/api/rooms", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ playerName: "Alice" }),
+    });
+    const cookie = first.headers.get("set-cookie")?.split(";")[0];
+    expect(first.status).toBe(201);
+    expect(cookie).toBeDefined();
+
+    const responses: Response[] = [];
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      responses.push(
+        await app.request("/api/rooms", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: cookie ?? "",
+          },
+          body: JSON.stringify({ playerName: "Alice" }),
+        }),
+      );
+    }
+
+    expect(responses.slice(0, 9).every((response) => response.status === 201)).toBe(true);
+    expect(responses[9]?.status).toBe(429);
+  });
+
+  it("rate limits repeated joins from one address without a retained cookie", async () => {
+    const app = createAppWithStub();
+    const responses: Response[] = [];
+
+    for (let attempt = 0; attempt < 121; attempt += 1) {
+      responses.push(
+        await app.request("/api/rooms/ABC234/join", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ playerName: "Bob" }),
+        }),
+      );
+    }
+
+    expect(responses.slice(0, 120).every((response) => response.status === 200)).toBe(true);
+    expect(responses[120]?.status).toBe(429);
+    const body = asRecord(await responses[120]?.json());
+    expect(asRecord(body.error).code).toBe("RATE_LIMITED");
+  });
+
   it("returns INVALID_REQUEST for invalid join route parameters", async () => {
     const app = createAppWithStub();
     const response = await app.request("/api/rooms/AB/join", {

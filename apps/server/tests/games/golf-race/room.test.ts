@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-
+import { matchMaker } from "@colyseus/core";
 import {
   GolfRaceState,
   type ISeatReservation,
@@ -7,7 +7,6 @@ import {
   ROOM_MESSAGE_TYPES,
   type RoomTransition,
 } from "@phone-party/protocol";
-import { matchMaker } from "colyseus";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createGameRegistry } from "../../../src/games/game-registry.js";
 import {
@@ -485,6 +484,11 @@ describe("Golf room integration", () => {
     }
     expect(result.leaderboard.length).toBe(2);
     expect([...result.leaderboard].some((entry) => entry.sessionId === bobSessionId)).toBe(true);
+
+    alice.send("play_again", {});
+    await waitFor(() => alice.state.phase === "lobby", 10_000);
+    expect(alice.state.players.has(bobSessionId)).toBe(false);
+    expect(alice.state.players.size).toBe(1);
   }, 240_000);
 
   it("does not deadlock when a player disconnects and reconnects", async () => {

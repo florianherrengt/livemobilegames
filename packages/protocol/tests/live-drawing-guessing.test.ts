@@ -39,6 +39,7 @@ describe("live drawing command schemas", () => {
     const invalid = [
       { type: "stroke", strokeId: "", color: "#000000", points: [0, 0] },
       { type: "stroke", strokeId: "stroke-1", color: "#ffffff", points: [0, 0] },
+      { type: "stroke", strokeId: "stroke-1", color: "#000000", points: [] },
       { type: "stroke", strokeId: "stroke-1", color: "#000000", points: [0] },
       { type: "stroke", strokeId: "stroke-1", color: "#000000", points: [0, 2000] },
       { type: "stroke", strokeId: "stroke-1", color: "#000000", points: [Number.NaN, 0] },

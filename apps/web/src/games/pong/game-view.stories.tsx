@@ -116,16 +116,16 @@ export const Finished: Story = {
   }),
 };
 
-export const TiedFinished: Story = {
+export const CloseFinish: Story = {
   render: (args: {
     connection: RoomConnection;
     state: ReturnType<typeof makePongState>;
     selfSessionId: string;
   }) => <PongGameView {...args} />,
   args: makeArgs("finished", {
-    result: makePongResult({ tie: true }),
+    result: makePongResult({ bobScore: 9 }),
     aliceScore: 10,
-    bobScore: 10,
+    bobScore: 9,
   }),
 };
 

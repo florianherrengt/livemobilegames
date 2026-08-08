@@ -7,6 +7,35 @@ async function openPhone(browser: Browser): Promise<Page> {
     hasTouch: true,
     deviceScaleFactor: 2,
   });
+  await context.addInitScript(() => {
+    const NativeWebSocket = window.WebSocket;
+    const sockets: WebSocket[] = [];
+    class TrackedWebSocket extends NativeWebSocket {
+      constructor(url: string | URL, protocols: string | string[] = []) {
+        super(url, protocols);
+        sockets.push(this);
+      }
+    }
+    Object.defineProperty(window, "WebSocket", { configurable: true, value: TrackedWebSocket });
+    const testWindow = window as typeof window & {
+      __dropPartySocket?: () => boolean;
+      __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+    };
+    testWindow.__dropPartySocket = () => {
+      const socket = [...sockets]
+        .reverse()
+        .find((candidate) => candidate.readyState === NativeWebSocket.OPEN);
+      if (socket === undefined) {
+        return false;
+      }
+      socket.close();
+      return true;
+    };
+    testWindow.__partySocketSnapshot = () => ({
+      count: sockets.length,
+      latestOpen: sockets.at(-1)?.readyState === NativeWebSocket.OPEN,
+    });
+  });
   return context.newPage();
 }
 
@@ -75,6 +104,35 @@ async function tapFlapRepeatedly(page: Page, count: number, intervalMs: number):
   }
 }
 
+async function dropSocketAndObserveReconnect(page: Page): Promise<void> {
+  const beforeSocketCount = await page.evaluate(
+    () =>
+      (
+        window as typeof window & {
+          __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+        }
+      ).__partySocketSnapshot?.().count ?? 0,
+  );
+  const dropped = await page.evaluate(
+    () =>
+      (window as typeof window & { __dropPartySocket?: () => boolean }).__dropPartySocket?.() ??
+      false,
+  );
+  expect(dropped).toBe(true);
+  await page.waitForFunction(
+    (previousCount) => {
+      const snapshot = (
+        window as typeof window & {
+          __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+        }
+      ).__partySocketSnapshot?.();
+      return snapshot !== undefined && snapshot.count > previousCount && snapshot.latestOpen;
+    },
+    beforeSocketCount,
+    { timeout: 10_000 },
+  );
+}
+
 test("two phones play a deterministic five-round Flappy Race match", async ({ browser }) => {
   test.setTimeout(90_000);
 
@@ -108,7 +166,15 @@ test("two phones play a deterministic five-round Flappy Race match", async ({ br
   expect(aliceOpenings).toEqual(bobOpenings);
 
   // Round 1: no taps -> both crash into the second obstacle and draw.
-  const roundOne = await captureRoundResult(alice, 1);
+  const roundOnePromise = captureRoundResult(alice, 1);
+  const carol = await openPhone(browser);
+  await carol.goto("/");
+  await carol.locator("#room-code").fill(code);
+  await carol.locator("#join-player-name").fill("Carol");
+  await carol.getByRole("button", { name: "Join room" }).click();
+  await expect(carol.getByRole("alert")).toContainText(/cannot accept new players/i);
+  await carol.close();
+  const roundOne = await roundOnePromise;
   expect(roundOne.winners).toHaveLength(2);
 
   // Round 2: Alice flaps up and crashes early; Bob passes it and wins. The
@@ -123,10 +189,10 @@ test("two phones play a deterministic five-round Flappy Race match", async ({ br
   // Rounds 3-4 draw; round 5 goes straight to the final scoreboard.
   const roundThreePromise = captureRoundResult(alice, 3);
   await waitForRoundNumber(alice, 3);
-  await roundThreePromise;
+  expect((await roundThreePromise).winners).toHaveLength(2);
   const roundFourPromise = captureRoundResult(alice, 4);
   await waitForRoundNumber(alice, 4);
-  await roundFourPromise;
+  expect((await roundFourPromise).winners).toHaveLength(2);
 
   await expect(alice.getByTestId("flappy-race-leaderboard")).toBeVisible({ timeout: 20_000 });
   await expect(bob.getByTestId("flappy-race-leaderboard")).toBeVisible({ timeout: 20_000 });
@@ -134,6 +200,8 @@ test("two phones play a deterministic five-round Flappy Race match", async ({ br
   await expect(alice.getByTestId("flappy-race-leaderboard")).toContainText("5 wins");
   await expect(alice.getByTestId("flappy-race-leaderboard")).toContainText("Alice");
   await expect(alice.getByTestId("flappy-race-leaderboard")).toContainText("4 wins");
+  await expect(alice.getByTestId("flappy-race-leaderboard").locator("li")).toHaveCount(2);
+  await expect(bob.getByText("Waiting for the host to play again…")).toBeVisible();
 
   // Host rematch returns to the course with a fresh match.
   await alice.getByRole("button", { name: "Play again" }).click();
@@ -151,4 +219,36 @@ test("two phones play a deterministic five-round Flappy Race match", async ({ br
 
   await alice.close();
   await bob.close();
+});
+
+test("a dropped Flappy Race player reconnects as a spectator", async ({ browser }) => {
+  test.setTimeout(45_000);
+
+  const alice = await openPhone(browser);
+  const bob = await openPhone(browser);
+  const carol = await openPhone(browser);
+  const code = await createRoom(alice, "Alice");
+  await joinRoom(bob, "Bob", code);
+  await joinRoom(carol, "Carol", code);
+  await expect(alice.getByText(/Players \(3\)/)).toBeVisible({ timeout: 15_000 });
+
+  await alice.getByRole("combobox", { name: "Choose a game" }).click();
+  await alice.getByRole("option", { name: "Flappy Race" }).click();
+  await alice.getByRole("button", { name: "Start game" }).click();
+  await waitForPhase(alice, "running", 15_000);
+  await waitForPhase(bob, "running", 15_000);
+  const bobSessionId = await arena(bob).getAttribute("data-self-session");
+  expect(bobSessionId).not.toBeNull();
+
+  await dropSocketAndObserveReconnect(bob);
+
+  await waitForRoundNumber(bob, 2, 15_000);
+  await expect(arena(bob)).toHaveAttribute("data-self-session", bobSessionId ?? "");
+  await expect(arena(bob)).toHaveAttribute("data-spectating", "true");
+  await expect(bob.getByTestId("flappy-flap-button")).toBeDisabled();
+  await expect(arena(alice)).toHaveAttribute("data-spectating", "false");
+
+  await alice.close();
+  await bob.close();
+  await carol.close();
 });

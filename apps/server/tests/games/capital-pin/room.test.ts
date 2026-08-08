@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-
+import { matchMaker } from "@colyseus/core";
 import {
   CapitalPinState,
   type ISeatReservation,
@@ -7,7 +7,6 @@ import {
   ROOM_MESSAGE_TYPES,
   type RoomTransition,
 } from "@phone-party/protocol";
-import { matchMaker } from "colyseus";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -218,9 +217,57 @@ describe("Capital Pin room integration", () => {
     bobGame.send("play_again", {});
     await nonHostAgain;
 
+    // A rematch must wait while a roster player is reconnecting. The match is
+    // old enough for Colyseus reconnection by the time ten rounds complete.
+    bobGame.reconnection.enabled = false;
+    bobGame.connection.close();
+    await waitFor(
+      () => aliceGame.state.players.get(bobGame.sessionId)?.connectionStatus === "reconnecting",
+    ).catch(() => {
+      throw new Error("Bob never entered reconnecting state");
+    });
+    await waitFor(() => bobGame.reconnectionToken !== undefined).catch(() => {
+      throw new Error("Bob never received a reconnection token");
+    });
+
+    let hostPlayAgainError: { code: string; message: string } | null = null;
+    const offHostError = aliceGame.onMessage("*", (type, payload) => {
+      if (type === ROOM_MESSAGE_TYPES.error) {
+        hostPlayAgainError = payload as { code: string; message: string };
+      }
+    });
     aliceGame.send("play_again", {});
-    // All players are connected, so play-again auto-starts round 1 again.
-    await waitFor(() => aliceGame.state.phase === "round");
+    await waitFor(
+      () =>
+        aliceGame.state.result === null ||
+        aliceGame.state.result === undefined ||
+        hostPlayAgainError !== null,
+    );
+    offHostError();
+    expect(hostPlayAgainError).toBeNull();
+    expect(aliceGame.state.phase).toBe("lobby");
+    expect(aliceGame.state.roundNumber).toBe(0);
+
+    const token = bobGame.reconnectionToken;
+    if (token === undefined) {
+      throw new Error("Missing Bob reconnection token");
+    }
+    const reconnectedBob = await test.testServer.sdk.reconnect(token, CapitalPinState);
+    // Once everyone is connected again, play-again auto-starts round 1.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(reconnectedBob.state.players.size).toBe(2);
+    expect(aliceGame.state.players.size).toBe(2);
+    expect(
+      [...reconnectedBob.state.players.entries()].map(([sessionId, player]) => ({
+        sessionId,
+        connectionStatus: player.connectionStatus,
+      })),
+    ).toEqual([
+      { sessionId: aliceGame.sessionId, connectionStatus: "connected" },
+      { sessionId: bobGame.sessionId, connectionStatus: "connected" },
+    ]);
+    expect(reconnectedBob.state.phase).toBe("round");
+    expect(aliceGame.state.phase).toBe("round");
     expect(aliceGame.state.roundNumber).toBe(1);
     expect(aliceGame.state.result ?? null).toBeNull();
     expect(aliceGame.state.players.get(aliceGame.sessionId)?.roundWins).toBe(0);

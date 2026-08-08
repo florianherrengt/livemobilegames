@@ -182,15 +182,6 @@ function moveKarts(runtime: KartRacingRuntime, stepMs: number, now: number): voi
     player.prevY = player.y;
     player.x += Math.cos(player.heading) * player.speed * dt;
     player.y += Math.sin(player.heading) * player.speed * dt;
-    if (Number.isNaN(player.x) || Number.isNaN(player.y)) {
-      console.log("NaN move", {
-        session: player.sessionId,
-        heading: player.heading,
-        speed: player.speed,
-        x: player.x,
-        y: player.y,
-      });
-    }
 
     handleStuck(player, runtime, dt);
     updateWrongWay(player, runtime, dt);
@@ -358,7 +349,10 @@ function finishPlayer(runtime: KartRacingRuntime, player: RuntimePlayer, now: nu
   player.finishTimeMs = Math.max(0, now - runtime.raceStartedAt);
   runtime.raceFinishOrder.push(player.sessionId);
   if (runtime.raceFinishOrder.length === 1) {
-    runtime.raceFinishTimeoutEndsAt = now + runtime.settings.raceFinishTimeoutMs;
+    runtime.raceFinishTimeoutEndsAt = Math.min(
+      runtime.raceFinishTimeoutEndsAt,
+      now + runtime.settings.raceFinishTimeoutMs,
+    );
   }
 }
 
@@ -543,7 +537,7 @@ export function endRace(runtime: KartRacingRuntime, now: number): void {
     .sort((a, b) => a.finishPosition - b.finishPosition);
   const unfinished = participants
     .filter((player) => player.finishPosition === 0)
-    .sort((a, b) => compareProgress(runtime, b, a));
+    .sort((a, b) => compareRaceOrder(runtime, a, b));
   const ordered = [...finished, ...unfinished];
   const entries = ordered.map((player, index) => {
     const position = index + 1;
@@ -595,7 +589,7 @@ export function updateRacePositions(runtime: KartRacingRuntime): void {
       aFinished - bFinished ||
       (a.finishPosition > 0 && b.finishPosition > 0
         ? a.finishPosition - b.finishPosition
-        : compareProgress(runtime, b, a))
+        : compareRaceOrder(runtime, a, b))
     );
   });
   ordered.forEach((player, index) => {
@@ -603,13 +597,13 @@ export function updateRacePositions(runtime: KartRacingRuntime): void {
   });
 }
 
-function compareProgress(runtime: KartRacingRuntime, a: RuntimePlayer, b: RuntimePlayer): number {
+function compareRaceOrder(runtime: KartRacingRuntime, a: RuntimePlayer, b: RuntimePlayer): number {
   const pa = playerProgress(runtime, a);
   const pb = playerProgress(runtime, b);
   return (
-    pa.completedLaps - pb.completedLaps ||
-    pa.nextCheckpointIndex - pb.nextCheckpointIndex ||
-    pa.fraction - pb.fraction ||
+    pb.completedLaps - pa.completedLaps ||
+    pb.nextCheckpointIndex - pa.nextCheckpointIndex ||
+    pb.fraction - pa.fraction ||
     a.joinedOrder - b.joinedOrder
   );
 }

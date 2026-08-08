@@ -239,7 +239,7 @@ export function MemoryPathArenaView({
   const [showHowTo, setShowHowTo] = useState(state.phase === "preview" && state.roundNumber === 1);
 
   const local = state.players.get(selfSessionId);
-  const movingEnabled = canMove(state, selfSessionId);
+  const movingEnabled = !connection.reconnecting && canMove(state, selfSessionId);
   const isSpectator = local !== undefined && !local.participating && state.phase !== "lobby";
   const wasFallingRef = useRef(local?.falling ?? false);
   const wasRoundResultRef = useRef(false);
@@ -247,7 +247,7 @@ export function MemoryPathArenaView({
 
   const sendMove = (x: number, y: number): void => {
     const current = stateRef.current;
-    if (!canMove(current, selfSessionId)) {
+    if (connection.reconnecting || !canMove(current, selfSessionId)) {
       return;
     }
     sequenceRef.current += 1;
@@ -454,9 +454,10 @@ export function MemoryPathArenaView({
           </Typography>
         )}
         {isSpectator && <Chip label="Spectating" size="small" variant="outlined" color="info" />}
-        {local !== undefined && local.connectionStatus !== "connected" && (
-          <Chip label="Reconnecting…" size="small" variant="outlined" color="warning" />
-        )}
+        {local !== undefined &&
+          (connection.reconnecting || local.connectionStatus !== "connected") && (
+            <Chip label="Reconnecting…" size="small" variant="outlined" color="warning" />
+          )}
         <Typography variant="body2" sx={{ ml: "auto", color: "text.secondary" }} aria-live="polite">
           {state.pathVisible && state.phase === "racing" ? "Path visible" : ""}
         </Typography>

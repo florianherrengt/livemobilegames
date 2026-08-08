@@ -223,6 +223,29 @@ describe("Kart Racing engine", () => {
     expect(entries[1]?.timedOut).toBe(true);
   });
 
+  it("ends by a hard race deadline when nobody reaches the finish", () => {
+    const runtime = createTestRuntime(2);
+    runtime.countdownEndsAt = START_NOW;
+    advance(runtime, START_NOW, START_NOW + 100);
+    expect(runtime.phase).toBe("racing");
+    const tiedPosition = runtime.track.gridPositions[0] ?? { x: 0, y: 0 };
+    for (const player of runtime.players.values()) {
+      player.active = false;
+      player.speed = 0;
+      player.x = tiedPosition.x;
+      player.y = tiedPosition.y;
+    }
+    const deadline = runtime.raceFinishTimeoutEndsAt;
+    expect(deadline).toBeGreaterThan(START_NOW + 100);
+
+    advance(runtime, START_NOW + 100, deadline + 1);
+
+    expect(runtime.phase).toBe("race-result");
+    expect(runtime.raceFinishOrder).toEqual([]);
+    expect(runtime.raceResult?.every((entry) => entry.timedOut)).toBe(true);
+    expect(runtime.raceResult?.map((entry) => entry.sessionId)).toEqual(["session-0", "session-1"]);
+  });
+
   it("updates live race positions by completed laps, checkpoints, and progress", () => {
     const runtime = createTestRuntime(2);
     const alice = runtime.players.get("session-0");

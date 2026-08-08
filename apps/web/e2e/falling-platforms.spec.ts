@@ -7,6 +7,35 @@ async function openPhone(browser: Browser): Promise<Page> {
     hasTouch: true,
     deviceScaleFactor: 2,
   });
+  await context.addInitScript(() => {
+    const NativeWebSocket = window.WebSocket;
+    const sockets: WebSocket[] = [];
+    class TrackedWebSocket extends NativeWebSocket {
+      constructor(url: string | URL, protocols: string | string[] = []) {
+        super(url, protocols);
+        sockets.push(this);
+      }
+    }
+    Object.defineProperty(window, "WebSocket", { configurable: true, value: TrackedWebSocket });
+    const testWindow = window as typeof window & {
+      __dropPartySocket?: () => boolean;
+      __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+    };
+    testWindow.__dropPartySocket = () => {
+      const socket = [...sockets]
+        .reverse()
+        .find((candidate) => candidate.readyState === NativeWebSocket.OPEN);
+      if (socket === undefined) {
+        return false;
+      }
+      socket.close();
+      return true;
+    };
+    testWindow.__partySocketSnapshot = () => ({
+      count: sockets.length,
+      latestOpen: sockets.at(-1)?.readyState === NativeWebSocket.OPEN,
+    });
+  });
   return context.newPage();
 }
 
@@ -101,9 +130,40 @@ async function expectArenaResized(page: Page): Promise<void> {
   });
 }
 
-test("two phones play a deterministic Falling Platforms round and a second round", async ({
+async function dropSocketAndObserveReconnect(page: Page): Promise<void> {
+  const beforeSocketCount = await page.evaluate(
+    () =>
+      (
+        window as typeof window & {
+          __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+        }
+      ).__partySocketSnapshot?.().count ?? 0,
+  );
+  const dropped = await page.evaluate(
+    () =>
+      (window as typeof window & { __dropPartySocket?: () => boolean }).__dropPartySocket?.() ??
+      false,
+  );
+  expect(dropped).toBe(true);
+  await page.waitForFunction(
+    (previousCount) => {
+      const snapshot = (
+        window as typeof window & {
+          __partySocketSnapshot?: () => { count: number; latestOpen: boolean };
+        }
+      ).__partySocketSnapshot?.();
+      return snapshot !== undefined && snapshot.count > previousCount && snapshot.latestOpen;
+    },
+    beforeSocketCount,
+    { timeout: 10_000 },
+  );
+}
+
+test("two phones finish, reconnect, and finish a Falling Platforms rematch", async ({
   browser,
 }) => {
+  test.setTimeout(60_000);
+
   const alice = await openPhone(browser);
   const bob = await openPhone(browser);
 
@@ -112,6 +172,8 @@ test("two phones play a deterministic Falling Platforms round and a second round
   await joinRoom(bob, "Bob", code);
   await expect(alice.getByText(/Players \(2\)/)).toBeVisible({ timeout: 15_000 });
   await expect(bob.getByText(/Players \(2\)/)).toBeVisible({ timeout: 15_000 });
+  await expect(alice.getByText("Alice (you)", { exact: true })).toBeVisible();
+  await expect(bob.getByText("Bob (you)", { exact: true })).toBeVisible();
 
   // Host selects Falling Platforms and starts once: the transition and the
   // first round begin automatically when every roster player has arrived.
@@ -153,6 +215,8 @@ test("two phones play a deterministic Falling Platforms round and a second round
     "data-local-platform",
     "3:4",
   );
+  await expect(alice.getByTestId("player-Alice")).toHaveAttribute("data-local", "true");
+  await expect(bob.getByTestId("player-Bob")).toHaveAttribute("data-local", "true");
 
   // Alice swipes from 3:3 to 4:3; both phones see the authoritative movement.
   await swipeRight(alice);
@@ -222,20 +286,44 @@ test("two phones play a deterministic Falling Platforms round and a second round
     "2",
   );
 
-  // The arena stays usable at the 320px minimum width without horizontal
-  // page scroll.
+  // The room is now old enough for a real Colyseus reconnect. Alice drops her
+  // game socket, resumes the same second round, then makes a hop which Bob
+  // observes from his independent phone.
+  await dropSocketAndObserveReconnect(alice);
+  await expect(alice.getByTestId("player-Alice")).toHaveAttribute("data-local", "true");
+  await swipeRight(alice);
+  await expect(alice.getByTestId("falling-platforms-arena")).toHaveAttribute(
+    "data-local-platform",
+    "4:3",
+    { timeout: 10_000 },
+  );
+  await expect(bob.getByTestId("player-Alice")).toHaveAttribute("data-platform", "4:3", {
+    timeout: 10_000,
+  });
+
+  // Bob is eliminated by the deterministic first collapse again, proving the
+  // post-reconnect rematch also reaches its intended end state on both phones.
+  await expect(bob.getByTestId("platform-3:4")).toHaveAttribute("data-state", "warning", {
+    timeout: 10_000,
+  });
+  await expect(bob.getByTestId("player-Bob")).toHaveAttribute("data-alive", "false", {
+    timeout: 10_000,
+  });
+  await expect(alice.getByText("Alice wins!")).toBeVisible({ timeout: 10_000 });
+  await expect(bob.getByText("Alice wins!")).toBeVisible({ timeout: 10_000 });
+
+  // The arena stays usable at the 320px minimum width without horizontal page
+  // scroll while the authoritative result overlays the surviving platform.
   for (const page of [alice, bob]) {
     await page.setViewportSize({ width: 320, height: 568 });
     await expectArenaResized(page);
-    const localPlatform = page === alice ? "3:3" : "3:4";
-    await expectPlatformVisible(page, localPlatform);
-    await expectPlatformLarge(page, localPlatform);
+    await expectPlatformVisible(page, "4:3");
+    await expectPlatformLarge(page, "4:3");
     const noHorizontalScroll = await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
     );
     expect(noHorizontalScroll).toBe(true);
   }
 
-  await alice.close();
-  await bob.close();
+  await Promise.all([alice.context().close(), bob.context().close()]);
 });

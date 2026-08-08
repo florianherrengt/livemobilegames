@@ -104,6 +104,11 @@ export function LiveDrawingGuessingGameView({
 
   const self = selfPlayer(state, selfSessionId);
   const isSpectator = self?.isSpectator === true;
+  const currentDrawerBriefing =
+    drawerBriefing?.turnNumber === state.turnNumber &&
+    drawerBriefing.roundNumber === state.roundNumber
+      ? drawerBriefing
+      : null;
 
   useEffect(() => {
     // The drawer's private word is sent at turn start; if this client mounted
@@ -112,10 +117,10 @@ export function LiveDrawingGuessingGameView({
       self !== undefined &&
       self.playerId === state.drawerPlayerId &&
       (state.phase === "preparing" || state.phase === "drawing");
-    if (isCurrentDrawer && drawerBriefing === null) {
+    if (isCurrentDrawer && currentDrawerBriefing === null) {
       connection.room.send(LIVE_DRAWING_GUESSING_MESSAGE_TYPES.drawerRequest, {});
     }
-  }, [connection.room, drawerBriefing, self, state.drawerPlayerId, state.phase]);
+  }, [connection.room, currentDrawerBriefing, self, state.drawerPlayerId, state.phase]);
 
   if (state.phase === "preparing" || state.phase === "drawing") {
     return (
@@ -124,7 +129,7 @@ export function LiveDrawingGuessingGameView({
         state={state}
         self={self}
         isSpectator={isSpectator}
-        drawerBriefing={drawerBriefing}
+        drawerBriefing={currentDrawerBriefing}
         guessFeedback={guessFeedback}
         clearGuessFeedback={() => setGuessFeedback(null)}
         roomError={roomError}
@@ -220,9 +225,10 @@ function TurnView({
           {preparing ? `${secondsLeft}` : `${secondsLeft}s`}
         </Typography>
         {isSpectator && <Chip label="Spectating" size="small" variant="outlined" color="info" />}
-        {self?.connectionStatus !== "connected" && self !== undefined && (
-          <Chip label="Reconnecting…" size="small" variant="outlined" color="warning" />
-        )}
+        {(connection.reconnecting || self?.connectionStatus !== "connected") &&
+          self !== undefined && (
+            <Chip label="Reconnecting…" size="small" variant="outlined" color="warning" />
+          )}
         <Button
           type="button"
           size="small"
@@ -252,7 +258,7 @@ function TurnView({
         <Box sx={{ flex: 1, minHeight: 0 }}>
           <DrawingCanvas
             strokes={[...state.strokes]}
-            interactive={isDrawer && !preparing}
+            interactive={isDrawer && !preparing && !connection.reconnecting}
             ariaLabel={`Live drawing${isDrawer ? " — draw with one finger" : ""}`}
             testId="ldg-canvas"
             color={paletteColor}
@@ -292,7 +298,7 @@ function TurnView({
           onSelectColor={setPaletteColor}
         />
       )}
-      {isGuesser && !preparing && (
+      {isGuesser && !preparing && !connection.reconnecting && (
         <GuesserControls
           connection={connection}
           feedback={guessFeedback}

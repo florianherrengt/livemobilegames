@@ -1,3 +1,4 @@
+import { type Client, ErrorCode, Room, ServerError } from "@colyseus/core";
 import {
   COIN_RUSH_CONSTANTS,
   COIN_RUSH_GAME_ID,
@@ -8,7 +9,6 @@ import {
   seatOptionsSchema,
   startGameRequestSchema,
 } from "@phone-party/protocol";
-import { type Client, ErrorCode, Room, ServerError } from "colyseus";
 
 import { COIN_RUSH_SERVER_CONSTANTS } from "./constants.js";
 import {

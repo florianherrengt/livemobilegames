@@ -19,8 +19,10 @@ const joinRoomParamsSchema = z.object({
 
 export type RoomRoutesDeps = {
   readonly roomService: RoomService;
-  readonly createRoomLimiter: RateLimiterMemory;
-  readonly joinRoomLimiter: RateLimiterMemory;
+  readonly createRoomPlayerLimiter: RateLimiterMemory;
+  readonly createRoomAddressLimiter: RateLimiterMemory;
+  readonly joinRoomPlayerLimiter: RateLimiterMemory;
+  readonly joinRoomAddressLimiter: RateLimiterMemory;
 };
 
 export function createRoomRoutes(deps: RoomRoutesDeps): Hono<AppEnv> {
@@ -28,7 +30,7 @@ export function createRoomRoutes(deps: RoomRoutesDeps): Hono<AppEnv> {
 
   app.post(
     "/api/rooms",
-    rateLimit(deps.createRoomLimiter),
+    rateLimit(deps.createRoomPlayerLimiter, deps.createRoomAddressLimiter),
     zValidator("json", createRoomRequestSchema, (result, c) => {
       if (!result.success) {
         return invalidRequestResponse(c, result.error);
@@ -48,7 +50,7 @@ export function createRoomRoutes(deps: RoomRoutesDeps): Hono<AppEnv> {
 
   app.post(
     "/api/rooms/:code/join",
-    rateLimit(deps.joinRoomLimiter),
+    rateLimit(deps.joinRoomPlayerLimiter, deps.joinRoomAddressLimiter),
     zValidator("param", joinRoomParamsSchema, (result, c) => {
       if (!result.success) {
         return invalidRequestResponse(c, result.error);
@@ -77,17 +79,16 @@ export function createRoomRoutes(deps: RoomRoutesDeps): Hono<AppEnv> {
   return app;
 }
 
-export function rateLimit(limiter: RateLimiterMemory) {
+export function rateLimit(playerLimiter: RateLimiterMemory, addressLimiter: RateLimiterMemory) {
   return createMiddleware<AppEnv>(async (c, next) => {
-    // Use the socket address instead of x-forwarded-for: in this single-process
-    // deployment nothing sits in front of Node, and blindly trusting proxy
-    // headers would let a client fake its rate-limit key. The player ID is
-    // included so one shared IP does not lock out unrelated players.
+    // Use the socket address instead of x-forwarded-for: blindly trusting proxy
+    // headers would let a client fake the address bucket. Player and address
+    // limits must be independent; a composite key can be bypassed by omitting
+    // the anonymous cookie and receiving a fresh signed player ID each time.
     const remoteAddress = c.env?.incoming?.socket.remoteAddress;
     const ip = remoteAddress?.replace(/^::ffff:/, "") ?? "local";
-    const key = `${c.get("playerId")}:${ip}`;
     try {
-      await limiter.consume(key);
+      await Promise.all([playerLimiter.consume(c.get("playerId")), addressLimiter.consume(ip)]);
     } catch {
       throw new AppError("RATE_LIMITED", 429, "Too many requests");
     }

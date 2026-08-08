@@ -8,6 +8,17 @@ describe("capital dataset validation", () => {
     expect(() => validateCapitalDataset(CAPITALS)).not.toThrow();
   });
 
+  it("uses the official capitals for Benin and Ivory Coast", () => {
+    expect(CAPITALS).toContainEqual(
+      expect.objectContaining({ city: "Porto-Novo", country: "Benin" }),
+    );
+    expect(CAPITALS).toContainEqual(
+      expect.objectContaining({ city: "Yamoussoukro", country: "Ivory Coast" }),
+    );
+    expect(CAPITALS).not.toContainEqual(expect.objectContaining({ city: "Cotonou" }));
+    expect(CAPITALS).not.toContainEqual(expect.objectContaining({ city: "Abidjan" }));
+  });
+
   it("rejects malformed entries", () => {
     expect(() =>
       validateCapitalDataset([{ id: "x", city: "X", country: "Y", latitude: 200, longitude: 0 }]),

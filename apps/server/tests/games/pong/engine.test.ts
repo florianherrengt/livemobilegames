@@ -261,7 +261,8 @@ describe("pong ball progression", () => {
     const runtime = runtimeWithPlayers(2);
     start(runtime, 1_000);
     updatePong(runtime, 1_000 + E2E.countdownMs);
-    advance(runtime, 1_000 + E2E.countdownMs, 1_000 + E2E.countdownMs + 8_000);
+    advance(runtime, 1_000 + E2E.countdownMs, 1_000 + E2E.countdownMs + 1_200);
+    expect(runtime.desiredBallCount).toBe(2);
     expect(runtime.balls.size).toBe(2);
   });
 
@@ -507,7 +508,7 @@ describe("pong scoring", () => {
     expect(Math.hypot(second?.vx ?? 0, second?.vy ?? 0)).toBeCloseTo(E2E.ballSpeed, 3);
   });
 
-  it("processes every score event from one step and declares co-winners", () => {
+  it("stops at the first authoritative score event that reaches ten", () => {
     const runtime = runtimeWithPlayers(2);
     start(runtime, 1_000);
     updatePong(runtime, 1_000 + E2E.countdownMs);
@@ -544,19 +545,15 @@ describe("pong scoring", () => {
     }
     secondBall.ownerSessionId = bottom.sessionId;
     runSteps(runtime, 1);
-    expect(bottom.score).toBe(10);
+    expect(bottom.score).toBe(9);
     expect(top.score).toBe(10);
     expect(runtime.phase).toBe("finished");
-    expect(runtime.result?.winnerSessionIds.sort()).toEqual(
-      [bottom.sessionId, top.sessionId].sort(),
-    );
-    expect(runtime.balls.size).toBe(2);
-    for (const ball of runtime.balls.values()) {
-      expect(ball.state).toBe("warning");
-    }
+    expect(runtime.result?.winnerSessionIds).toEqual([top.sessionId]);
+    expect(runtime.balls.size).toBe(1);
+    expect(runtime.balls.get(secondId)?.state).toBe("moving");
   });
 
-  it("lets a winner finish above 10 and freezes scores afterwards", () => {
+  it("caps the winner at ten when multiple owned balls exit in one step", () => {
     const runtime = runtimeWithPlayers(2);
     start(runtime, 1_000);
     updatePong(runtime, 1_000 + E2E.countdownMs);
@@ -584,7 +581,7 @@ describe("pong scoring", () => {
     }
     secondBall.ownerSessionId = bottom.sessionId;
     runSteps(runtime, 1);
-    expect(bottom.score).toBe(11);
+    expect(bottom.score).toBe(10);
     expect(runtime.phase).toBe("finished");
     expect(runtime.result?.winnerSessionIds).toEqual([bottom.sessionId]);
 
@@ -594,7 +591,7 @@ describe("pong scoring", () => {
     advance(runtime, 2_100, 2_500);
     expect(runtime.balls.get(ball?.id ?? "")?.x).toBe(xBefore);
     expect(runtime.balls.get(ball?.id ?? "")?.y).toBe(yBefore);
-    expect(bottom.score).toBe(11);
+    expect(bottom.score).toBe(10);
   });
 });
 

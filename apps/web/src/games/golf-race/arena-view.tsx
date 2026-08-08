@@ -176,7 +176,9 @@ function drawFrame(
   }
   ctx.restore();
 
-  const orderedPlayers = [...state.players.values()].sort((a, b) => a.joinedOrder - b.joinedOrder);
+  const orderedPlayers = [...state.players.values()]
+    .filter((player) => player.connectionStatus !== "disconnected")
+    .sort((a, b) => a.joinedOrder - b.joinedOrder);
   for (const player of orderedPlayers) {
     const point = toScreen(player.positionX, player.positionY);
     ctx.beginPath();
@@ -587,8 +589,10 @@ export function ArenaView({
         data-testid="golf-race-arena"
         data-phase={state.phase}
         data-round={state.roundNumber}
+        data-round-ends-at={state.roundEndsAt}
         data-current-turn={state.currentTurnSessionId}
         data-self-session={selfSessionId}
+        data-local-connection={local?.connectionStatus ?? ""}
         data-spectating={String(spectating)}
         data-ball-positions={JSON.stringify(
           [...state.players.entries()].map(([sessionId, player]) => ({

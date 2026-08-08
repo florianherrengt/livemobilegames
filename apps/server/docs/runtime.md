@@ -31,9 +31,14 @@ with an explicit object, so they do not depend on a developer's `.env`.
 | `HOST` | `0.0.0.0` | Bind address |
 | `COOKIE_SECRET` | none | Required signing secret, at least 32 characters |
 | `PUBLIC_ORIGIN` | `http://localhost:5173` | Validated public browser origin; reserved but not otherwise consumed yet |
-| `COLYSEUS_PATH` | `/colyseus` | WebSocket path prefix; must begin with `/` |
+| `COLYSEUS_PATH` | `/colyseus` | Non-root WebSocket path prefix; normalized without a trailing slash |
 | `LOBBY_MAX_CLIENTS` | `8` | Lobby capacity, from 1 through 32 |
+| `CREATE_ROOM_PLAYER_RATE_LIMIT` | `10` | Per-minute room-creation attempts for one signed player |
+| `CREATE_ROOM_ADDRESS_RATE_LIMIT` | `60` | Per-minute room-creation attempts for one socket address |
+| `JOIN_ROOM_PLAYER_RATE_LIMIT` | `20` | Per-minute room-join attempts for one signed player |
+| `JOIN_ROOM_ADDRESS_RATE_LIMIT` | `120` | Per-minute room-join attempts for one socket address |
 | `E2E_TEST_MODE` | `false` | Shortens game round/results timings for test suites |
+| `E2E_TURN_DURATION_MS` | none | Optional Live Drawing turn duration used only in E2E mode |
 | `CAPITAL_PIN_TRANSITION_TIMEOUT_MS` | `15000` | Deadline for all roster players to arrive in a registered game room |
 | `LOG_LEVEL` | `info` | Pino log level |
 
@@ -43,7 +48,9 @@ one change. Do not read `process.env` throughout feature modules.
 
 Each git worktree loads its own root `.env`. `PUBLIC_ORIGIN` must match that
 worktree's `WEB_PORT`; `pnpm worktree:create` sets both, and the Vite dev proxy
-follows the same `PORT`.
+follows the same `PORT`. `VITE_COLYSEUS_PATH` must exactly match the normalized
+`COLYSEUS_PATH`; Vite rejects a mismatched pair instead of serving a browser
+bundle that can never reach the configured WebSocket endpoint.
 
 `src/config.ts` is the only runtime access layer for environment values. The
 only exceptions are build and test tooling (`vite.config.ts` and
@@ -58,11 +65,15 @@ mutable state.
 One Node.js HTTP server owns all public traffic:
 
 - Colyseus handles matchmaking requests under `/matchmake`.
-- `WebSocketTransport` handles upgrades under the configured Colyseus path.
+- `WebSocketTransport` handles upgrades under the configured non-root Colyseus path.
 - Hono handles `/api`, production static assets, and the single-page application
   fallback.
 - Hono and Colyseus share the same port. Do not start a second HTTP server or
   add CORS as a workaround for local routing.
+
+The Colyseus schema encoder buffer is 256 KiB. This covers the maximum bounded
+Live Drawing snapshot for a late spectator or reconnecting player; client
+messages remain separately capped by the transport and strict command schemas.
 
 `createPlatformServer` is the composition root. It owns the HTTP server,
 WebSocket transport, Colyseus server, room directory, room service, Hono app,
@@ -75,7 +86,8 @@ requests return an explicit JSON 404 and must never receive the SPA HTML.
 
 When `apps/web/dist` exists, hashed assets are served with long-lived immutable
 caching and the SPA entry point with `no-cache`. In development, Vite serves the
-web app and proxies `/api`, `/matchmake`, and `/colyseus` to this server.
+web app and proxies `/api`, `/matchmake`, and the configured Colyseus path to
+this server.
 
 ## Production container and helium routing
 

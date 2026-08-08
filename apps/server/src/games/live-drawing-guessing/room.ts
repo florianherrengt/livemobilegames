@@ -1,3 +1,4 @@
+import { type Client, ErrorCode, Room, ServerError } from "@colyseus/core";
 import {
   LIVE_DRAWING_GUESSING_GAME_ID,
   LIVE_DRAWING_GUESSING_MESSAGE_TYPES,
@@ -11,7 +12,6 @@ import {
   seatOptionsSchema,
   startGameRequestSchema,
 } from "@phone-party/protocol";
-import { type Client, ErrorCode, Room, ServerError } from "colyseus";
 
 import { LIVE_DRAWING_GUESSING_SERVER_CONSTANTS } from "./constants.js";
 import {
@@ -91,6 +91,7 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
   #tickTimer: RoomTimer | null = null;
   #strokeTimestamps = new Map<string, number[]>();
   #guessTimestamps = new Map<string, number[]>();
+  #strokePointCount = 0;
   #lastBriefedTurn = 0;
 
   constructor(roomCreationToken: string) {
@@ -315,6 +316,7 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
     this.#clearTickTimer();
     this.#strokeTimestamps.clear();
     this.#guessTimestamps.clear();
+    this.#strokePointCount = 0;
   }
 
   #handleStroke(client: Client, message: unknown): void {
@@ -332,12 +334,26 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
       sendError(client, "INVALID_GAME_COMMAND", "Drawing is not active for you");
       return;
     }
-    if (!this.#consumeRate(this.#strokeTimestamps, client.sessionId, Date.now(), 30)) {
+    if (
+      !this.#consumeRate(
+        this.#strokeTimestamps,
+        client.sessionId,
+        Date.now(),
+        LIVE_DRAWING_GUESSING_SERVER_CONSTANTS.MAX_STROKE_MESSAGES_PER_SECOND,
+      )
+    ) {
       // Flood protection, not a gameplay penalty: silently ignore the excess.
       return;
     }
 
     const data = parsed.data;
+    const incomingPointCount = data.points.length / 2;
+    if (
+      this.#strokePointCount + incomingPointCount >
+      LIVE_DRAWING_GUESSING_SERVER_CONSTANTS.MAX_POINTS_PER_TURN
+    ) {
+      return;
+    }
     let stroke = [...this.state.strokes].find((entry) => entry.strokeId === data.strokeId);
     if (stroke === undefined) {
       if (
@@ -351,6 +367,7 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
       stroke.complete = data.complete ?? false;
       stroke.points.push(...data.points);
       this.state.strokes.push(stroke);
+      this.#strokePointCount += incomingPointCount;
       return;
     }
     if (stroke.complete) {
@@ -364,6 +381,7 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
       return;
     }
     stroke.points.push(...data.points);
+    this.#strokePointCount += incomingPointCount;
     if (data.complete === true) {
       stroke.complete = true;
     }
@@ -384,9 +402,22 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
       sendError(client, "INVALID_GAME_COMMAND", "Drawing is not active for you");
       return;
     }
+    if (
+      !this.#consumeRate(
+        this.#strokeTimestamps,
+        client.sessionId,
+        Date.now(),
+        LIVE_DRAWING_GUESSING_SERVER_CONSTANTS.MAX_STROKE_MESSAGES_PER_SECOND,
+      )
+    ) {
+      // Undo shares the drawing-command budget so small valid messages cannot
+      // consume unbounded server work.
+      return;
+    }
     for (let index = this.state.strokes.length - 1; index >= 0; index -= 1) {
       const stroke = this.state.strokes[index];
       if (stroke?.complete === true) {
+        this.#strokePointCount = Math.max(0, this.#strokePointCount - stroke.points.length / 2);
         this.state.strokes.splice(index, 1);
         return;
       }
@@ -417,7 +448,14 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
       client.send(LIVE_DRAWING_GUESSING_MESSAGE_TYPES.guessFeedback, { kind: "not-guesser" });
       return;
     }
-    if (!this.#consumeRate(this.#guessTimestamps, client.sessionId, Date.now(), 30)) {
+    if (
+      !this.#consumeRate(
+        this.#guessTimestamps,
+        client.sessionId,
+        Date.now(),
+        LIVE_DRAWING_GUESSING_SERVER_CONSTANTS.MAX_GUESSES_PER_SECOND,
+      )
+    ) {
       // Flood protection, not a gameplay penalty: silently ignore the excess.
       return;
     }
@@ -590,7 +628,12 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
   }
 
   #sync(): void {
+    const previousTurnNumber = this.state.turnNumber;
     syncLiveDrawingGuessingState(this.state, this.#engine);
+    if (this.state.turnNumber !== previousTurnNumber) {
+      this.#strokePointCount = 0;
+      this.#strokeTimestamps.clear();
+    }
     if (this.#engine.phase === "preparing" && this.#engine.turnNumber !== this.#lastBriefedTurn) {
       this.#lastBriefedTurn = this.#engine.turnNumber;
       const drawer = this.#engine.players.get(this.#engine.drawerPlayerId);

@@ -549,10 +549,12 @@ export function ArenaView({
   }, []);
 
   useEffect(() => {
-    // Minimal automation hook used by Playwright: it exposes the same
-    // steering/shooting intents the touch controls send, so the full
-    // three-race browser test can drive a real match without flaky synthetic
-    // pointer state. It is not part of the UI and is cleaned up on unmount.
+    if (window.sessionStorage.getItem("kart-racing-e2e-driver") !== "1") {
+      return;
+    }
+    // Playwright opts into this minimal hook before navigation. It exposes the
+    // same steering/shooting intents the touch controls send and is cleaned up
+    // on unmount; ordinary production sessions never receive it.
     const drive = {
       steer: (value: number) => sendSteering(value, true),
       shoot: () => sendShoot(),
@@ -813,11 +815,16 @@ export function ArenaView({
         data-local-heading={localPlayer?.kartHeading ?? ""}
         data-local-speed={localPlayer?.kartSpeed ?? ""}
         data-local-lap={localPlayer?.lap ?? 0}
+        data-local-checkpoint={localPlayer?.checkpointsPassed ?? 0}
+        data-self-session={selfSessionId}
+        data-local-connection={localPlayer?.connectionStatus ?? ""}
         data-local-position={localPlayer?.racePosition ?? 0}
         data-local-ammo={localPlayer?.ammoLoaded ?? false}
         data-local-finished={localPlayer?.finished ?? false}
         data-local-active={localPlayer?.active ?? false}
         data-local-respawn={localPlayer?.respawnRemainingMs ?? 0}
+        data-projectile-count={state.projectiles.length}
+        data-race-ends-at={state.raceFinishTimeoutEndsAt}
         data-lookahead-x={lookahead.x}
         data-lookahead-y={lookahead.y}
         role="application"

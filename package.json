@@ -8,6 +8,11 @@
     "node": ">=22",
     "pnpm": ">=9"
   },
+  "pnpm": {
+    "overrides": {
+      "nanoid": "3.3.17"
+    }
+  },
   "scripts": {
     "dev": "pnpm --filter @phone-party/protocol build && concurrently -k -n server,web -c blue,green \"pnpm --filter @phone-party/server dev\" \"pnpm --filter @phone-party/web dev\"",
     "worktree:create": "node scripts/worktree-create.mjs",

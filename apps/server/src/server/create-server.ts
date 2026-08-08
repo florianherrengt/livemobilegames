@@ -1,6 +1,8 @@
 import { createServer } from "node:http";
+import { defineRoom, defineServer, type RegisteredHandler } from "@colyseus/core";
+import { Encoder } from "@colyseus/schema";
+import { WebSocketTransport } from "@colyseus/ws-transport";
 import { getRequestListener } from "@hono/node-server";
-import { defineRoom, defineServer, type RegisteredHandler, WebSocketTransport } from "colyseus";
 import type { NextFunction, Request, Response } from "express";
 import type { Hono } from "hono";
 
@@ -13,6 +15,14 @@ import { startGameTransition } from "../rooms/game-transition.js";
 import { createLobbyRoomClass, LOBBY_ROOM_TYPE } from "../rooms/lobby-room.js";
 import { RoomDirectory } from "../rooms/room-directory.js";
 import { RoomService } from "../rooms/room-service.js";
+
+/**
+ * Live Drawing has an explicit 10,000-point/1,000-stroke turn bound. A fully
+ * populated snapshot remains below this buffer, including the maximum player
+ * and spectator roster. Colyseus's 8 KiB default is too small for a legitimate
+ * late spectator or reconnect snapshot at that documented bound.
+ */
+export const COLYSEUS_SCHEMA_BUFFER_SIZE_BYTES = 256 * 1024;
 
 export type PlatformServerDeps = {
   readonly config: AppConfig;
@@ -32,6 +42,7 @@ export type PlatformServer = {
 };
 
 export async function createPlatformServer(deps: PlatformServerDeps): Promise<PlatformServer> {
+  Encoder.BUFFER_SIZE = COLYSEUS_SCHEMA_BUFFER_SIZE_BYTES;
   const httpServer = createServer();
   const transport = new WebSocketTransport({ noServer: true, maxPayload: 16 * 1024 });
   const colyseusPath = deps.config.colyseusPath.replace(/\/$/, "");

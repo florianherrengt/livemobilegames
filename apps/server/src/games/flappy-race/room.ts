@@ -1,3 +1,4 @@
+import { type Client, ErrorCode, Room, ServerError } from "@colyseus/core";
 import {
   FLAPPY_RACE_GAME_ID,
   FLAPPY_RACE_MESSAGE_TYPES,
@@ -7,7 +8,6 @@ import {
   seatOptionsSchema,
   startGameRequestSchema,
 } from "@phone-party/protocol";
-import { type Client, ErrorCode, Room, ServerError } from "colyseus";
 
 import { FLAPPY_RACE_SERVER_CONSTANTS } from "./constants.js";
 import {

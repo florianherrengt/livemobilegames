@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-
+import { matchMaker } from "@colyseus/core";
 import {
   FlappyRaceState,
   type ISeatReservation,
@@ -7,7 +7,6 @@ import {
   ROOM_MESSAGE_TYPES,
   type RoomTransition,
 } from "@phone-party/protocol";
-import { matchMaker } from "colyseus";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {

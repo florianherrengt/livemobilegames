@@ -1,4 +1,4 @@
-import { type CoinRushDirection, coinRushCellId } from "@phone-party/protocol";
+import { COIN_RUSH_CONSTANTS, type CoinRushDirection, coinRushCellId } from "@phone-party/protocol";
 
 import type { CoinRushRuntime, RuntimePlayer } from "./types.js";
 
@@ -124,7 +124,7 @@ function tryMove(
   }
 
   const target = targetPosition(player, direction);
-  if (!isInsideBoard(target, 9, 17)) {
+  if (!isInsideBoard(target, COIN_RUSH_CONSTANTS.COL_COUNT, COIN_RUSH_CONSTANTS.ROW_COUNT)) {
     if (isPush) {
       return success([makeMove(player, direction, target, true, true)]);
     }

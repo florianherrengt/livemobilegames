@@ -243,7 +243,10 @@ export class KartRacingState extends Schema {
   @type("number") resultsEndsAt = 0;
   /** Absolute epoch ms when the current race began; 0 outside racing. */
   @type("number") raceStartedAt = 0;
-  /** Absolute epoch ms when the race-finish timeout ends; 0 until the first finisher. */
+  /**
+   * Absolute epoch ms for the hard race deadline. The server shortens this
+   * deadline after the first finisher so remaining karts cannot stall results.
+   */
   @type("number") raceFinishTimeoutEndsAt = 0;
   @type("string") trackId = "";
   @type("string") trackName = "";

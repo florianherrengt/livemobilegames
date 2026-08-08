@@ -21,6 +21,7 @@ export function createSettings(e2eMode: boolean): KartRacingSettings {
     raceFinishTimeoutMs: e2eMode
       ? config.E2E_RACE_FINISH_TIMEOUT_MS
       : config.RACE_FINISH_TIMEOUT_MS,
+    raceMaxDurationMs: e2eMode ? config.E2E_RACE_MAX_DURATION_MS : config.RACE_MAX_DURATION_MS,
     maxSpeed: config.MAX_SPEED * scale,
     acceleration: config.ACCELERATION * scale,
     steeringStrength: config.STEERING_STRENGTH * scale,
@@ -327,6 +328,7 @@ export function prepareRace(runtime: KartRacingRuntime, now: number, raceNumber:
 export function beginRunning(runtime: KartRacingRuntime, now: number): void {
   runtime.phase = "racing";
   runtime.raceStartedAt = now;
+  runtime.raceFinishTimeoutEndsAt = now + runtime.settings.raceMaxDurationMs;
   runtime.lastTickAt = now;
   runtime.simAccumMs = 0;
 }

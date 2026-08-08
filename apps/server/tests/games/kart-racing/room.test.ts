@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-
+import { matchMaker } from "@colyseus/core";
 import {
   type ISeatReservation,
   KART_RACING_MESSAGE_TYPES,
@@ -10,7 +10,6 @@ import {
   ROOM_MESSAGE_TYPES,
   type RoomTransition,
 } from "@phone-party/protocol";
-import { matchMaker } from "colyseus";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createGameRegistry } from "../../../src/games/game-registry.js";
 import { KART_RACING_SERVER_CONSTANTS } from "../../../src/games/kart-racing/constants.js";

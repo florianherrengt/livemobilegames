@@ -36,9 +36,16 @@ describe("falling platforms hop command", () => {
     const invalid = [
       { type: "hop", sequence: 1.5, targetPlatformId: "3:4" },
       { type: "hop", sequence: Number.NaN, targetPlatformId: "3:4" },
+      { type: "hop", sequence: -1, targetPlatformId: "3:4" },
+      {
+        type: "hop",
+        sequence: Number.MAX_SAFE_INTEGER + 1,
+        targetPlatformId: "3:4",
+      },
       { type: "hop", sequence: 1, targetPlatformId: "banana" },
       { type: "hop", sequence: 1, targetPlatformId: "3:4:5" },
       { type: "hop", sequence: 1, targetPlatformId: "999" },
+      { type: "hop", sequence: 1, targetPlatformId: `${"9".repeat(40)}:4` },
     ];
     for (const payload of invalid) {
       expect(fallingPlatformHopSchema.safeParse(payload).success).toBe(false);

@@ -9,16 +9,16 @@
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:unit": "vitest run tests/room-code.test.ts tests/game-registry.test.ts tests/room-directory.test.ts tests/anonymous-session.test.ts",
-    "test:integration": "vitest run tests/app.test.ts tests/rooms.test.ts"
+    "test:unit": "vitest run --exclude 'tests/rooms.test.ts' --exclude 'tests/games/**/room.test.ts'",
+    "test:integration": "vitest run tests/rooms.test.ts tests/games/*/room.test.ts"
   },
   "dependencies": {
     "@colyseus/core": "0.17.46",
     "@colyseus/schema": "4.0.30",
+    "@colyseus/ws-transport": "0.17.13",
     "@hono/node-server": "2.0.10",
     "@hono/zod-validator": "0.9.0",
     "@phone-party/protocol": "workspace:*",
-    "colyseus": "0.17.10",
     "hono": "4.12.34",
     "pino": "10.3.1",
     "rate-limiter-flexible": "11.2.0",

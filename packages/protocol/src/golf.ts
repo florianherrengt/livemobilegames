@@ -137,6 +137,8 @@ export class GolfRacePlayerState extends Schema {
   @type("number") sectionProgress = 0;
   @type("boolean") finished = false;
   @type("number") finishedRank = 0;
+  /** The round deadline ranked this unfinished ball by authoritative progress. */
+  @type("boolean") timedOut = false;
   @type("boolean") playedThisRound = false;
   @type("number") roundWins = 0;
   @type("number") matchPoints = 0;
@@ -183,6 +185,8 @@ export class GolfRaceState extends Schema {
   @type("number") resultsEndsAt = 0;
   /** Absolute epoch ms when the current aiming turn ends; 0 otherwise. */
   @type("number") aimingEndsAt = 0;
+  /** Absolute epoch ms when the current round is ranked by progress. */
+  @type("number") roundEndsAt = 0;
   /** Session id of the player currently aiming; "" when nobody is aiming. */
   @type("string") currentTurnSessionId = "";
   @type(["string"]) turnOrder = new ArraySchema<string>();

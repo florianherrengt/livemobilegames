@@ -1,5 +1,5 @@
+import type { Room, RoomOptions } from "@colyseus/core";
 import type { GameManifest } from "@phone-party/protocol";
-import type { Room, RoomOptions } from "colyseus";
 
 export type GameDefinition = {
   readonly manifest: GameManifest;

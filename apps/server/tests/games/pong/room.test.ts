@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-
+import { matchMaker } from "@colyseus/core";
 import {
   type ISeatReservation,
   LobbyRoomState,
@@ -8,7 +8,6 @@ import {
   ROOM_MESSAGE_TYPES,
   type RoomTransition,
 } from "@phone-party/protocol";
-import { matchMaker } from "colyseus";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createGameRegistry } from "../../../src/games/game-registry.js";
@@ -495,31 +494,28 @@ describe("Pong room integration", () => {
     await waitFor(() => alice.state.balls.size === bob.state.balls.size);
   }, 30_000);
 
-  it("continues and transfers host when a player permanently leaves mid-match", async () => {
+  it("awards the remaining player a forfeit win and prevents a one-player rematch", async () => {
     const { reservations } = await createDirectRoom(2);
     const alice = await consumeGame(test, reservations[0]);
     const bob = await consumeGame(test, reservations[1]);
     await waitFor(() => alice.state.phase === "running", 10_000);
 
     await alice.leave();
-    await waitFor(() => bob.state.players.size === 1, 10_000);
+    await waitFor(() => bob.state.phase === "finished", 10_000);
     expect(bob.state.hostSessionId).toBe(bob.sessionId);
-    expect(bob.state.phase).toBe("running");
-    const elapsedBefore = bob.state.matchElapsedMs;
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
-    expect(bob.state.matchElapsedMs).toBeGreaterThan(elapsedBefore);
-    const bobPlayer = bob.state.players.get(bob.sessionId);
-    if (!bobPlayer) {
-      throw new Error("missing Bob");
+    expect(bob.state.players.size).toBe(1);
+    expect(bob.state.players.has(alice.sessionId)).toBe(false);
+    expect(bob.state.players.get(bob.sessionId)?.score).toBe(PONG_CONSTANTS.TARGET_SCORE);
+    expect([...(bob.state.result?.winnerSessionIds ?? [])]).toEqual([bob.sessionId]);
+
+    const notEnoughPlayers = waitForRoomError(bob, "NOT_ENOUGH_PLAYERS");
+    bob.send(ROOM_MESSAGE_TYPES.playAgain, {});
+    expect(await notEnoughPlayers).toContain("two connected players");
+    expect(bob.state.phase).toBe("finished");
+    expect(bob.state.players.get(bob.sessionId)?.score).toBe(PONG_CONSTANTS.TARGET_SCORE);
+    if (bob.state.result === null) {
+      throw new Error("missing forfeit result");
     }
-    const startingPaddleCenter = bobPlayer.paddleCenter;
-    paddleMove(bob, 1, 0);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    const leftPosition = bob.state.players.get(bob.sessionId)?.paddleCenter ?? 0;
-    expect(leftPosition).toBeLessThan(startingPaddleCenter);
-    paddleMove(bob, 2, 1);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    expect(bob.state.players.get(bob.sessionId)?.paddleCenter ?? 0).toBeGreaterThan(leftPosition);
   }, 30_000);
 
   it("disposes the game room when a roster player never arrives", async () => {

@@ -131,6 +131,37 @@ describe("PongGameView", () => {
     });
   });
 
+  it("maps screen-left and screen-right correctly for a rotated top-edge player", () => {
+    const state = makePongState("running");
+    const { connection, sent } = makeRoomConnection(state);
+    render(<ArenaView connection={connection} state={state} selfSessionId="bob-session" />);
+    const arena = screen.getByTestId("pong-arena");
+    vi.spyOn(arena, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      width: 200,
+      top: 0,
+      right: 200,
+      bottom: 400,
+      height: 400,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.pointerDown(arena, { pointerId: 1, pointerType: "touch", clientX: 40 });
+    fireEvent.pointerMove(arena, { pointerId: 1, pointerType: "touch", clientX: 160 });
+    fireEvent.pointerUp(arena, { pointerId: 1, pointerType: "touch", clientX: 160 });
+
+    expect(sent).toContainEqual({
+      type: "game:paddle-move",
+      payload: { type: "paddle_move", sequence: 1, target: 1 },
+    });
+    expect(sent).toContainEqual({
+      type: "game:paddle-move",
+      payload: { type: "paddle_move", sequence: 2, target: 0 },
+    });
+  });
+
   it("supports keyboard movement and stops on key release", () => {
     const state = makePongState("running");
     const { connection, sent } = makeRoomConnection(state);
@@ -179,6 +210,67 @@ describe("PongGameView", () => {
     expect(sent).toHaveLength(0);
   });
 
+  it("disables input while the room transport is reconnecting", () => {
+    const state = makePongState("running");
+    const { connection, sent } = makeRoomConnection(state);
+    Object.assign(connection, { reconnecting: true });
+    render(<ArenaView connection={connection} state={state} selfSessionId="host-session" />);
+
+    expect(screen.getByTestId("pong-arena")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("Reconnecting…")).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByTestId("pong-arena"), { key: "ArrowLeft" });
+    expect(sent).toHaveLength(0);
+  });
+
+  it("clears an active pointer so controls recover after reconnect", () => {
+    const state = makePongState("running");
+    const { connection, sent } = makeRoomConnection(state);
+    const { rerender } = render(
+      <ArenaView connection={connection} state={state} selfSessionId="host-session" />,
+    );
+    const arena = screen.getByTestId("pong-arena");
+    vi.spyOn(arena, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      width: 200,
+      top: 0,
+      right: 200,
+      bottom: 400,
+      height: 400,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    fireEvent.pointerDown(arena, { pointerId: 1, pointerType: "touch", clientX: 40 });
+
+    Object.assign(connection, { reconnecting: true });
+    rerender(<ArenaView connection={connection} state={state} selfSessionId="host-session" />);
+    Object.assign(connection, { reconnecting: false });
+    rerender(<ArenaView connection={connection} state={state} selfSessionId="host-session" />);
+
+    const recoveredArena = screen.getByTestId("pong-arena");
+    vi.spyOn(recoveredArena, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      width: 200,
+      top: 0,
+      right: 200,
+      bottom: 400,
+      height: 400,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    fireEvent.pointerDown(recoveredArena, {
+      pointerId: 2,
+      pointerType: "touch",
+      clientX: 160,
+    });
+
+    expect(sent).toContainEqual({
+      type: "game:paddle-move",
+      payload: { type: "paddle_move", sequence: 2, target: 1 },
+    });
+  });
+
   it("shows scores, the leader marker, and the target score", () => {
     const state = makePongState("running", { aliceScore: 4, bobScore: 2 });
     const { connection } = makeRoomConnection(state);
@@ -220,12 +312,26 @@ describe("PongGameView", () => {
     expect(sent).toContainEqual({ type: "play_again", payload: {} });
   });
 
-  it("builds a tied result with shared rank and score", () => {
-    const result = makePongResult({ tie: true });
-    expect(result.winnerSessionIds).toHaveLength(2);
-    expect([...result.leaderboard].every((entry) => entry.rank === 1 && entry.score === 10)).toBe(
-      true,
-    );
+  it("keeps the winner headline after the winner permanently leaves", () => {
+    const state = makePongState("finished", {
+      hostSessionId: "bob-session",
+      result: makePongResult(),
+    });
+    state.players.delete("host-session");
+    const { connection } = makeRoomConnection(state);
+
+    render(<PongGameView connection={connection} state={state} selfSessionId="bob-session" />);
+
+    expect(screen.getByText("Alice wins!")).toBeInTheDocument();
+  });
+
+  it("builds a singleton first-to-ten winner with a ranked runner-up", () => {
+    const result = makePongResult({ bobScore: 9 });
+    expect([...result.winnerSessionIds]).toEqual(["host-session"]);
+    expect([...result.leaderboard].map((entry) => [entry.rank, entry.score])).toEqual([
+      [1, 10],
+      [2, 9],
+    ]);
   });
 
   it("keeps the arena overflow hidden for 320px layouts", () => {

@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { type Client, ErrorCode, Room, ServerError } from "@colyseus/core";
 import {
   CAPITAL_PIN_GAME_ID,
   CapitalPinPlayerState,
@@ -9,7 +10,6 @@ import {
   seatOptionsSchema,
   startGameRequestSchema,
 } from "@phone-party/protocol";
-import { type Client, ErrorCode, Room, ServerError } from "colyseus";
 import { CAPITALS } from "./capitals.js";
 import { CAPITAL_PIN_CONSTANTS } from "./constants.js";
 import { CapitalPinEngine } from "./engine.js";
@@ -357,7 +357,12 @@ export class CapitalPinRoom extends Room<{ state: CapitalPinState }> {
   }
 
   #connectedRosterSize(): number {
-    return this.#roster.filter((player) => player.connectedSessionId !== null).length;
+    return this.#roster.filter((player) => {
+      if (player.connectedSessionId === null) {
+        return false;
+      }
+      return this.state.players.get(player.connectedSessionId)?.connectionStatus === "connected";
+    }).length;
   }
 
   #messageFor(error: RoomErrorCode): string {

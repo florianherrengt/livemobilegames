@@ -64,7 +64,6 @@ const gameStateSchemas: Record<string, RoomStateSchema> = {
 const roomTypeStateSchemas: Record<string, RoomStateSchema> = {
   __platform_lobby: LobbyRoomState,
   "live-drawing-guessing-room": LiveDrawingGuessingState,
-  "memory-path-room": MemoryPathState,
 };
 
 export type RoomConnection = {
@@ -94,8 +93,11 @@ export function RoomConnectionProvider({ children }: { children: ReactNode }) {
   const stateSchemaRef = useRef<RoomStateSchema>(LobbyRoomState);
   const intentionalLeaveRef = useRef(false);
   const disposedRef = useRef(false);
+  const connectAttemptRef = useRef(0);
+  const transitioningRoomsRef = useRef(new WeakSet<Room<unknown, RoomState>>());
 
   const leave = useCallback(() => {
+    connectAttemptRef.current += 1;
     intentionalLeaveRef.current = true;
     roomRef.current?.leave();
     roomRef.current = null;
@@ -105,18 +107,28 @@ export function RoomConnectionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const attachRoom = useCallback(
-    (room: Room<unknown, RoomState>, client: Client, code: string) => {
+    (room: Room<unknown, RoomState>, client: Client, code: string, isLobby: boolean) => {
       room.onStateChange(() => setStateVersion((version) => version + 1));
       room.onMessage("*", (messageType, payload) => {
         if (messageType !== ROOM_MESSAGE_TYPES.transition) {
           return;
         }
-        void transitionToGameRoom(payload).catch(() => {
-          // A failed handoff leaves the stale connection honest: clear it so
-          // the UI shows a recoverable disconnected state.
-          roomRef.current = null;
-          setConnection(null);
-        });
+        if (transitioningRoomsRef.current.has(room)) {
+          return;
+        }
+        transitioningRoomsRef.current.add(room);
+        void transitionToGameRoom(payload)
+          .catch(() => {
+            if (disposedRef.current || roomRef.current !== room) {
+              return;
+            }
+            // A failed handoff leaves the stale connection honest: clear it so
+            // the UI shows a recoverable disconnected state.
+            roomRef.current = null;
+            clientRef.current = null;
+            setConnection(null);
+          })
+          .finally(() => transitioningRoomsRef.current.delete(room));
       });
       room.onLeave.once(async () => {
         // A stale leave callback from a replaced room must never touch the
@@ -126,6 +138,12 @@ export function RoomConnectionProvider({ children }: { children: ReactNode }) {
           return;
         }
         if (intentionalLeaveRef.current || disposedRef.current) {
+          return;
+        }
+        // The game reservation is already being consumed. Reconnecting the
+        // lobby in parallel can win the race and discard the one-use game
+        // reservation, so let the handoff finish or fail honestly instead.
+        if (transitioningRoomsRef.current.has(room)) {
           return;
         }
         const token = room.reconnectionToken;
@@ -138,6 +156,10 @@ export function RoomConnectionProvider({ children }: { children: ReactNode }) {
         try {
           const reconnected = await client.reconnect(token, stateSchemaRef.current);
           const nextRoom = reconnected as Room<unknown, RoomState>;
+          if (disposedRef.current || roomRef.current !== room) {
+            await nextRoom.leave();
+            return;
+          }
           roomRef.current = nextRoom;
           setConnection({
             code,
@@ -146,7 +168,7 @@ export function RoomConnectionProvider({ children }: { children: ReactNode }) {
             reconnecting: false,
             leave,
           });
-          attachRoom(nextRoom, client, code);
+          attachRoom(nextRoom, client, code, isLobby);
         } catch {
           if (roomRef.current !== room) {
             return;
@@ -167,11 +189,14 @@ export function RoomConnectionProvider({ children }: { children: ReactNode }) {
         }
         let nextRoom: Room<unknown, RoomState> | null = null;
         try {
+          if (disposedRef.current || roomRef.current !== room) {
+            return;
+          }
           nextRoom = (await client.consumeSeatReservation(
             parsed.data.reservation,
             StateClass,
           )) as unknown as Room<unknown, RoomState>;
-          if (disposedRef.current) {
+          if (disposedRef.current || roomRef.current !== room) {
             await nextRoom.leave();
             return;
           }
@@ -182,6 +207,10 @@ export function RoomConnectionProvider({ children }: { children: ReactNode }) {
           } finally {
             intentionalLeaveRef.current = false;
           }
+          if (disposedRef.current || roomRef.current !== room) {
+            await nextRoom.leave();
+            return;
+          }
           roomRef.current = nextRoom;
           stateSchemaRef.current = StateClass;
           setConnection({
@@ -191,7 +220,7 @@ export function RoomConnectionProvider({ children }: { children: ReactNode }) {
             reconnecting: false,
             leave,
           });
-          attachRoom(nextRoom, client, parsed.data.roomCode);
+          attachRoom(nextRoom, client, parsed.data.roomCode, false);
         } catch (error) {
           // A failed handoff must not leak the freshly connected game room.
           if (nextRoom !== null) {
@@ -200,12 +229,21 @@ export function RoomConnectionProvider({ children }: { children: ReactNode }) {
           throw error;
         }
       };
+
+      // A reconnect promise resolves before this provider can install its
+      // wildcard message handler. Requesting the pending transition only now
+      // avoids losing a server message in that narrow handoff window.
+      if (isLobby) {
+        room.send(ROOM_MESSAGE_TYPES.resumeTransition, {});
+      }
     },
     [leave],
   );
 
   const connect = useCallback(
     async (code: string, reservation: ISeatReservation) => {
+      const attempt = connectAttemptRef.current + 1;
+      connectAttemptRef.current = attempt;
       intentionalLeaveRef.current = true;
       try {
         roomRef.current?.leave();
@@ -225,8 +263,11 @@ export function RoomConnectionProvider({ children }: { children: ReactNode }) {
       )) as unknown as Room<unknown, RoomState>;
       // If the provider unmounted while the reservation was being consumed,
       // do not leak the newly connected room.
-      if (disposedRef.current) {
+      if (disposedRef.current || connectAttemptRef.current !== attempt) {
         await room.leave();
+        if (!disposedRef.current) {
+          throw new Error("Room connection was superseded");
+        }
         return;
       }
       roomRef.current = room;
@@ -239,7 +280,7 @@ export function RoomConnectionProvider({ children }: { children: ReactNode }) {
         reconnecting: false,
         leave,
       });
-      attachRoom(room, client, code);
+      attachRoom(room, client, code, StateClass === LobbyRoomState);
     },
     [attachRoom, leave],
   );
@@ -251,8 +292,11 @@ export function RoomConnectionProvider({ children }: { children: ReactNode }) {
     disposedRef.current = false;
     return () => {
       disposedRef.current = true;
+      connectAttemptRef.current += 1;
       intentionalLeaveRef.current = true;
       roomRef.current?.leave();
+      roomRef.current = null;
+      clientRef.current = null;
     };
   }, []);
 

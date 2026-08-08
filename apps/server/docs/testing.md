@@ -26,10 +26,12 @@ first isolating that state and proving cleanup is reliable.
 
 ## Unit and Hono application tests
 
-Unit suites cover room-code generation, the immutable game registry, the room
-directory, and anonymous sessions. `app.test.ts` calls the Hono application
-directly with a stubbed room service so route validation, middleware, headers,
-error mapping, and safe responses can be tested without a listening socket.
+Unit suites cover room-code generation, configuration, the immutable game
+registry, the room directory, anonymous sessions, and every game's pure engine,
+simulation, scoring, and input boundaries. `app.test.ts` calls the Hono
+application directly with a stubbed room service so route validation,
+middleware, independent player/address rate limits, headers, error mapping, and
+safe responses can be tested without a listening socket.
 
 Prefer explicit test configuration through `loadConfig({...})` or
 `createTestConfig()`. Tests must not depend on or mutate the developer's root
@@ -49,6 +51,10 @@ production and boots it through `@colyseus/testing`. These tests exercise:
 
 `tests/fixtures/test-game-room.ts` is a test-only registered game. It must never
 be added to the production game list or appear in the production catalogue.
+
+The integration command includes `tests/rooms.test.ts` and every
+`tests/games/*/room.test.ts` file. This is intentional: a game-room suite must
+not disappear from CI merely because its filename lives below `tests/games`.
 
 Always stop the test platform in `afterEach`, even after failures. Await state
 changes with a bounded condition helper; do not add arbitrary sleeps.
@@ -79,10 +85,13 @@ path. Run the suite on a normal developer machine or in CI.
 
 ## End-to-end coverage
 
-Playwright lives in `apps/web/e2e` but starts the compiled production server. It
-is the final full-stack check for room creation, multi-browser joining, invite
-links, mobile layout, and browser-visible error behavior. Run `pnpm test:e2e`
-when a covered server flow changes.
+Playwright lives in `apps/web/e2e` but starts the compiled production server.
+Every production game has a multi-context spec that creates a platform lobby,
+joins independent phones, starts through the real lobby-to-game reservation
+handoff, plays the complete documented match, asserts its final result, and
+starts a rematch. The flows also cover real socket loss/reconnection and
+game-specific late-join or disconnect behavior. Run `pnpm test:e2e` when a
+covered server flow changes.
 
 SQLite is not part of the current test setup. When the first durable feature is
 added, tests must use an isolated database and the real migration chain as

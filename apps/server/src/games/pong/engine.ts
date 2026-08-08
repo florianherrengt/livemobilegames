@@ -261,6 +261,24 @@ export function hasConnectedPlayers(runtime: PongRuntime): boolean {
   return [...runtime.players.values()].some((player) => player.connected);
 }
 
+/** End an active match when every opponent has permanently departed. */
+export function finishByForfeit(runtime: PongRuntime, winnerSessionId: string): boolean {
+  if (runtime.phase !== "countdown" && runtime.phase !== "running") {
+    return false;
+  }
+  const winner = runtime.players.get(winnerSessionId);
+  if (winner === undefined || !winner.connected) {
+    return false;
+  }
+  winner.score = Math.max(winner.score, PONG_SERVER_CONSTANTS.TARGET_SCORE);
+  runtime.phase = "finished";
+  runtime.result = buildPongResult(runtime);
+  for (const player of runtime.players.values()) {
+    player.queuedTarget = null;
+  }
+  return true;
+}
+
 function simulateStep(runtime: PongRuntime, stepMs: number, now: number): void {
   movePaddles(runtime, stepMs);
   if (runtime.phase !== "running") {
@@ -289,6 +307,14 @@ function simulateStep(runtime: PongRuntime, stepMs: number, now: number): void {
       const scorer = runtime.players.get(goal.ownerSessionId);
       if (scorer) {
         scorer.score += 1;
+        // Goals are accepted in the authoritative ball iteration order. The
+        // first accepted goal that reaches ten ends the match immediately;
+        // later same-step exits cannot create co-winners or push a score past
+        // the documented target.
+        if (scorer.score >= PONG_SERVER_CONSTANTS.TARGET_SCORE) {
+          evaluateWin(runtime);
+          return;
+        }
       }
     }
     addWarningBall(runtime, now + runtime.settings.spawnWarningMs);

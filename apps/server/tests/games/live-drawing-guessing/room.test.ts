@@ -1,14 +1,14 @@
 import { randomBytes } from "node:crypto";
-
+import { matchMaker } from "@colyseus/core";
 import {
   type ISeatReservation,
+  LIVE_DRAWING_GUESSING_CONSTANTS,
   LiveDrawingGuessingState,
   LobbyRoomState,
   ROOM_MESSAGE_TYPES,
   type RoomTransition,
 } from "@phone-party/protocol";
-import { matchMaker } from "colyseus";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createGameRegistry } from "../../../src/games/game-registry.js";
 import { LIVE_DRAWING_GUESSING_SERVER_CONSTANTS } from "../../../src/games/live-drawing-guessing/constants.js";
 import {
@@ -492,6 +492,81 @@ describe("Live Drawing and Guessing room integration", () => {
     const lateGuess = waitForGuessFeedback(guesser, "not-active");
     guess(guesser, "late");
     await lateGuess;
+  }, 30_000);
+
+  it("bounds synchronized drawing points and rate limits undo commands", async () => {
+    const { room, reservations } = await createDirectRoom(2, { e2eTurnDurationMs: 15_000 });
+    const alice = await consumeGame(test, reservations[0]);
+    const bob = await consumeGame(test, reservations[1]);
+    await Promise.all([waitForPlayers(alice, 2), waitForPlayers(bob, 2)]);
+    await waitForPhase(alice, "drawing", 10_000);
+
+    const drawerId = alice.state.drawerPlayerId;
+    const drawer = participantRooms([alice, bob]).find(
+      (room) => selfPlayer(room).playerId === drawerId,
+    );
+    if (!drawer) {
+      throw new Error("Expected a drawer room");
+    }
+
+    const schemaWarnings = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const maxSynchronizedPoints = LIVE_DRAWING_GUESSING_CONSTANTS.MAX_POINTS_PER_TURN;
+    const pointsPerMessage = 100;
+    const maxMessages = maxSynchronizedPoints / pointsPerMessage;
+    const points = Array.from({ length: pointsPerMessage * 2 }, () => 500);
+
+    // Stay below the per-second message limit while attempting to exceed the
+    // aggregate turn limit with individually valid, complete strokes.
+    for (let messageIndex = 0; messageIndex <= maxMessages; messageIndex += 1) {
+      if (messageIndex > 0 && messageIndex % 25 === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1_050));
+      }
+      stroke(drawer, `bounded-${messageIndex}`, points, true);
+    }
+
+    await waitFor(() => alice.state.strokes.length >= maxMessages, 5_000);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const synchronizedPointCount = [...alice.state.strokes].reduce(
+      (total, entry) => total + entry.points.length / 2,
+      0,
+    );
+    expect(synchronizedPointCount).toBe(maxSynchronizedPoints);
+    expect(alice.state.strokes).toHaveLength(maxMessages);
+
+    // A late spectator receives one full state snapshot. It must fit the
+    // configured encoder buffer at the maximum legal drawing size.
+    const spectatorReservation = await matchMaker.joinById(
+      room.roomId,
+      {
+        playerId: "00000000-0000-4000-8000-999999999999",
+        playerName: "Spectator",
+      },
+      authContext(),
+    );
+    const spectator = await consumeGame(test, spectatorReservation);
+    await waitFor(() => {
+      const receivedPoints = [...spectator.state.strokes].reduce(
+        (total, entry) => total + entry.points.length / 2,
+        0,
+      );
+      return receivedPoints === maxSynchronizedPoints;
+    }, 5_000);
+    expect(
+      schemaWarnings.mock.calls.some((call) =>
+        call.some((entry) => String(entry).includes("schema buffer overflow")),
+      ),
+    ).toBe(false);
+    schemaWarnings.mockRestore();
+
+    // Undo shares the drawing-command rate budget, preventing a stream of
+    // tiny valid messages from consuming unbounded server work.
+    await new Promise((resolve) => setTimeout(resolve, 1_050));
+    for (let index = 0; index < 40; index += 1) {
+      undo(drawer);
+    }
+    await waitFor(() => alice.state.strokes.length <= maxMessages - 30, 5_000);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(alice.state.strokes).toHaveLength(maxMessages - 30);
   }, 30_000);
 
   it("accepts a correct guess before any letter reveal and stops all reveals", async () => {

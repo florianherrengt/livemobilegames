@@ -1,3 +1,4 @@
+import { type Client, ErrorCode, Room, ServerError } from "@colyseus/core";
 import {
   MEMORY_PATH_GAME_ID,
   MEMORY_PATH_MESSAGE_TYPES,
@@ -7,7 +8,6 @@ import {
   seatOptionsSchema,
   startGameRequestSchema,
 } from "@phone-party/protocol";
-import { type Client, ErrorCode, Room, ServerError } from "colyseus";
 
 import { MEMORY_PATH_SERVER_CONSTANTS } from "./constants.js";
 import { evaluateNoEligible, updateRuntime } from "./engine.js";
@@ -323,6 +323,10 @@ export class MemoryPathRoom extends Room<{ state: MemoryPathState }> {
     }
     if (this.#engine.phase !== "match-result") {
       sendError(client, "GAME_NOT_RUNNING", "Play again is only available after a match");
+      return;
+    }
+    if (this.#connectedRosterSize() < MEMORY_PATH_SERVER_CONSTANTS.MIN_PLAYERS) {
+      sendError(client, "NOT_ENOUGH_PLAYERS", "At least two connected players are required");
       return;
     }
     resetForNewMatch(this.#engine);

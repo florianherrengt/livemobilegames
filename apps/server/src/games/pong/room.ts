@@ -1,3 +1,4 @@
+import { type Client, ErrorCode, Room, ServerError } from "@colyseus/core";
 import {
   PONG_GAME_ID,
   PONG_MESSAGE_TYPES,
@@ -7,7 +8,6 @@ import {
   seatOptionsSchema,
   startGameRequestSchema,
 } from "@phone-party/protocol";
-import { type Client, ErrorCode, Room, ServerError } from "colyseus";
 
 import { PONG_SERVER_CONSTANTS } from "./constants.js";
 import {
@@ -15,6 +15,7 @@ import {
   applyPaddleIntent,
   buildSettings,
   createRuntime,
+  finishByForfeit,
   hasConnectedPlayers,
   removePlayer,
   resetForNewMatch,
@@ -200,24 +201,30 @@ export class PongRoom extends Room<{ state: PongState }> {
   }
 
   override onLeave(client: Client): void {
-    const player = this.state.players.get(client.sessionId);
-    if (!player) {
+    const runtimePlayer = this.#engine.players.get(client.sessionId);
+    if (!runtimePlayer) {
       return;
     }
     const wasHost = client.sessionId === this.state.hostSessionId;
-    this.state.players.delete(client.sessionId);
     this.#roster = this.#roster.filter(
       (rosterPlayer) => rosterPlayer.connectedSessionId !== client.sessionId,
     );
+    for (const ball of this.#engine.balls.values()) {
+      if (ball.ownerSessionId === client.sessionId) {
+        ball.ownerSessionId = "";
+      }
+    }
     removePlayer(this.#engine, client.sessionId);
     if (wasHost) {
       this.#transferHost();
     }
-    if (
-      (this.#engine.phase === "countdown" || this.#engine.phase === "running") &&
-      !hasConnectedPlayers(this.#engine)
-    ) {
-      resetForNewMatch(this.#engine);
+    if (this.#engine.phase === "countdown" || this.#engine.phase === "running") {
+      const connected = [...this.#engine.players.values()].filter((player) => player.connected);
+      if (!hasConnectedPlayers(this.#engine)) {
+        resetForNewMatch(this.#engine);
+      } else if (connected.length === 1) {
+        finishByForfeit(this.#engine, connected[0]?.sessionId ?? "");
+      }
     }
     this.#sync();
     this.#tryAutoStart();
@@ -274,6 +281,13 @@ export class PongRoom extends Room<{ state: PongState }> {
     }
     if (this.#engine.phase !== "finished") {
       sendError(client, "GAME_NOT_RUNNING", "Play again is only available after a match");
+      return;
+    }
+    const connectedPlayers = [...this.#engine.players.values()].filter(
+      (player) => player.connected,
+    );
+    if (connectedPlayers.length < PONG_SERVER_CONSTANTS.MIN_PLAYERS) {
+      sendError(client, "NOT_ENOUGH_PLAYERS", "At least two connected players are required");
       return;
     }
     resetForNewMatch(this.#engine);

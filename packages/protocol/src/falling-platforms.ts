@@ -27,8 +27,11 @@ export type PlatformStateValue = z.infer<typeof platformStateValueSchema>;
 export const fallingPlatformHopSchema = z
   .object({
     type: z.literal("hop"),
-    sequence: z.number().int().finite(),
-    targetPlatformId: z.string().regex(/^\d+:\d+$/, "Invalid platform id"),
+    sequence: z.number().int().finite().nonnegative(),
+    targetPlatformId: z
+      .string()
+      .max(32)
+      .regex(/^\d+:\d+$/, "Invalid platform id"),
   })
   .strict();
 
@@ -57,7 +60,7 @@ export type HopRejectionReason = z.infer<typeof hopRejectionReasonSchema>;
 /** Private hop rejection sent only to the player whose hop was refused. */
 export const fallingPlatformHopRejectionSchema = z
   .object({
-    sequence: z.number().int().finite(),
+    sequence: z.number().int().finite().nonnegative(),
     reason: hopRejectionReasonSchema,
   })
   .strict();

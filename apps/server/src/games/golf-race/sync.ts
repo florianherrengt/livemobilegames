@@ -26,6 +26,7 @@ function copyPlayer(target: GolfRacePlayerState, source: RuntimePlayer, now: num
   target.sectionProgress = source.sectionProgress;
   target.finished = source.finished;
   target.finishedRank = source.finishedRank;
+  target.timedOut = source.timedOut;
   target.roundWins = source.roundWins;
   target.matchPoints = source.matchPoints;
   target.playedThisRound = source.playedThisRound;
@@ -64,6 +65,8 @@ export function syncGolfRaceState(state: GolfRaceState, runtime: GolfRuntime): v
   state.totalRounds = runtime.totalRounds;
   state.countdownEndsAt = runtime.phase === "countdown" ? runtime.countdownEndsAt : 0;
   state.aimingEndsAt = runtime.phase === "aiming" ? runtime.aimingEndsAt : 0;
+  state.roundEndsAt =
+    runtime.phase === "aiming" || runtime.phase === "simulating" ? runtime.roundEndsAt : 0;
   state.resultsEndsAt = runtime.phase === "round-result" ? runtime.resultsEndsAt : 0;
   state.currentTurnSessionId = runtime.phase === "aiming" ? runtime.currentTurnSessionId : "";
   state.turnIndex = runtime.turnIndex;

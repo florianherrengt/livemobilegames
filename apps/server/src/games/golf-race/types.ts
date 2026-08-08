@@ -9,6 +9,7 @@ export interface GolfSettings {
   countdownMs: number;
   immunityMs: number;
   roundResultMs: number;
+  roundMaxDurationMs: number;
   maxShotSpeed: number;
 }
 
@@ -32,6 +33,7 @@ export interface RuntimePlayer {
   sectionProgress: number;
   finished: boolean;
   finishedRank: number;
+  timedOut: boolean;
   roundWins: number;
   matchPoints: number;
   /** True once this player's turn in the current round has been consumed. */
@@ -74,6 +76,7 @@ export interface GolfRuntime {
   totalRounds: number;
   roundWinnerSessionIds: string[];
   resultsEndsAt: number;
+  roundEndsAt: number;
   roundParticipantCount: number;
   turnOrder: string[];
   turnIndex: number;

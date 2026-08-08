@@ -99,6 +99,55 @@ describe("LiveDrawingGuessingGameView", () => {
     expect(screen.getByText("How to play Live Drawing & Guessing")).toBeInTheDocument();
   });
 
+  it("discards a stale drawer briefing and requests the word for a later turn", () => {
+    const firstTurn = makeLiveDrawingGuessingState("preparing", {
+      drawerPlayerId: "alice",
+      turnNumber: 1,
+      roundNumber: 1,
+    });
+    const fixture = makeRoomConnection(firstTurn, "alice-session");
+    const { rerender } = render(
+      <LiveDrawingGuessingGameView
+        connection={fixture.connection}
+        state={firstTurn}
+        selfSessionId="alice-session"
+      />,
+    );
+    act(() => {
+      fixture.emit(LIVE_DRAWING_GUESSING_MESSAGE_TYPES.drawerBriefing, {
+        word: "penguin",
+        category: "Animal",
+        turnNumber: 1,
+        roundNumber: 1,
+        letterCount: 7,
+      });
+    });
+    expect(screen.getByTestId("ldg-drawer-word")).toHaveTextContent("penguin");
+    const requestsBefore = fixture.sent.filter(
+      (message) => message.type === LIVE_DRAWING_GUESSING_MESSAGE_TYPES.drawerRequest,
+    ).length;
+
+    const laterTurn = makeLiveDrawingGuessingState("preparing", {
+      drawerPlayerId: "alice",
+      turnNumber: 3,
+      roundNumber: 2,
+    });
+    rerender(
+      <LiveDrawingGuessingGameView
+        connection={fixture.connection}
+        state={laterTurn}
+        selfSessionId="alice-session"
+      />,
+    );
+
+    expect(screen.getByTestId("ldg-drawer-word")).toHaveTextContent("…");
+    expect(
+      fixture.sent.filter(
+        (message) => message.type === LIVE_DRAWING_GUESSING_MESSAGE_TYPES.drawerRequest,
+      ),
+    ).toHaveLength(requestsBefore + 1);
+  });
+
   it("shows the guesser the category, pattern, and drawer name during drawing", () => {
     const state = makeLiveDrawingGuessingState("drawing");
     renderGame(state, "bob-session");
@@ -216,6 +265,99 @@ describe("LiveDrawingGuessingGameView", () => {
     expect(screen.getByRole("heading", { name: "Spectating" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Your guess")).not.toBeInTheDocument();
     expect(screen.getByTestId("ldg-canvas")).toHaveAttribute("data-interactive", "false");
+  });
+
+  it("disables drawing and guessing while the room transport is reconnecting", () => {
+    const drawerState = makeLiveDrawingGuessingState("drawing");
+    const drawerFixture = makeRoomConnection(drawerState, "alice-session");
+    Object.assign(drawerFixture.connection, { reconnecting: true });
+    const { unmount } = render(
+      <LiveDrawingGuessingGameView
+        connection={drawerFixture.connection}
+        state={drawerState}
+        selfSessionId="alice-session"
+      />,
+    );
+    expect(screen.getByTestId("ldg-canvas")).toHaveAttribute("data-interactive", "false");
+    expect(screen.getByText("Reconnecting…")).toBeInTheDocument();
+    unmount();
+
+    const guesserState = makeLiveDrawingGuessingState("drawing");
+    const guesserFixture = makeRoomConnection(guesserState, "bob-session");
+    Object.assign(guesserFixture.connection, { reconnecting: true });
+    render(
+      <LiveDrawingGuessingGameView
+        connection={guesserFixture.connection}
+        state={guesserState}
+        selfSessionId="bob-session"
+      />,
+    );
+    expect(screen.queryByLabelText("Your guess")).not.toBeInTheDocument();
+    expect(screen.getByText("Reconnecting…")).toBeInTheDocument();
+  });
+
+  it("cancels an in-progress local stroke so drawing recovers after reconnect", () => {
+    const state = makeLiveDrawingGuessingState("drawing");
+    const fixture = makeRoomConnection(state, "alice-session");
+    const { rerender } = render(
+      <LiveDrawingGuessingGameView
+        connection={fixture.connection}
+        state={state}
+        selfSessionId="alice-session"
+      />,
+    );
+    const initialCanvas = screen.getByTestId("ldg-canvas").querySelector("canvas");
+    if (!initialCanvas) {
+      throw new Error("canvas missing");
+    }
+    fireEvent.pointerDown(initialCanvas, {
+      pointerId: 1,
+      pointerType: "touch",
+      clientX: 10,
+      clientY: 10,
+    });
+
+    Object.assign(fixture.connection, { reconnecting: true });
+    rerender(
+      <LiveDrawingGuessingGameView
+        connection={fixture.connection}
+        state={state}
+        selfSessionId="alice-session"
+      />,
+    );
+    Object.assign(fixture.connection, { reconnecting: false });
+    rerender(
+      <LiveDrawingGuessingGameView
+        connection={fixture.connection}
+        state={state}
+        selfSessionId="alice-session"
+      />,
+    );
+
+    const recoveredCanvas = screen.getByTestId("ldg-canvas").querySelector("canvas");
+    if (!recoveredCanvas) {
+      throw new Error("canvas missing after reconnect");
+    }
+    fireEvent.pointerDown(recoveredCanvas, {
+      pointerId: 2,
+      pointerType: "touch",
+      clientX: 20,
+      clientY: 20,
+    });
+    fireEvent.pointerUp(recoveredCanvas, {
+      pointerId: 2,
+      pointerType: "touch",
+      clientX: 40,
+      clientY: 40,
+    });
+
+    expect(
+      fixture.sent.some(
+        (message) =>
+          message.type === LIVE_DRAWING_GUESSING_MESSAGE_TYPES.stroke &&
+          (message.payload as { complete?: boolean }).complete === true,
+      ),
+    ).toBe(true);
   });
 
   it("shows the solved result with the answer and winner", () => {

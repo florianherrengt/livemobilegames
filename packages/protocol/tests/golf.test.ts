@@ -4,6 +4,7 @@ import {
   GOLF_COURSE,
   GOLF_GAME_ID,
   GOLF_MAX_DRAG_PX,
+  GolfRacePlayerState,
   GolfRaceState,
   golfCourseSchema,
   golfRaceCommandSchema,
@@ -124,6 +125,7 @@ describe("golf synchronized state", () => {
     expect(state.totalRounds).toBe(0);
     expect(state.countdownEndsAt).toBe(0);
     expect(state.aimingEndsAt).toBe(0);
+    expect(state.roundEndsAt).toBe(0);
     expect(state.resultsEndsAt).toBe(0);
     expect(state.currentTurnSessionId).toBe("");
     expect(state.turnOrder.length).toBe(0);
@@ -134,6 +136,7 @@ describe("golf synchronized state", () => {
     expect(state.result).toBeNull();
     expect("sequenceWindows" in state).toBe(false);
     expect("courseSeed" in state).toBe(false);
+    expect(new GolfRacePlayerState().timedOut).toBe(false);
   });
 
   it("exposes the stable game id constant", () => {

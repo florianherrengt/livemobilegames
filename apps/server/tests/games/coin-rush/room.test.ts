@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-
+import { matchMaker } from "@colyseus/core";
 import {
   COIN_RUSH_CONSTANTS,
   CoinRushState,
@@ -10,7 +10,6 @@ import {
   type RoomTransition,
   vehicleLeftEdge,
 } from "@phone-party/protocol";
-import { matchMaker } from "colyseus";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -389,6 +388,13 @@ describe("Coin Rush room integration", () => {
     await waitForPhase(bobGame, "countdown");
     expect(aliceGame.state.roundNumber).toBe(1);
     expect(bobGame.state.roundNumber).toBe(1);
+
+    // The browser remounts its arena for a rematch and starts move sequences
+    // from one again. The server must clear the previous match's replay window.
+    await waitForPhase(aliceGame, "playing");
+    move(aliceGame, 1, "up");
+    await waitFor(() => aliceGame.state.players.get(aliceSession)?.y === 1, 5_000);
+    expect(bobGame.state.players.get(aliceSession)?.y).toBe(1);
   }, 180_000);
 
   it("resolves simultaneous same-destination moves identically on every client", async () => {

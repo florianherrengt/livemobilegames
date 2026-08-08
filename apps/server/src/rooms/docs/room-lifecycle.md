@@ -75,8 +75,10 @@ Response:
 ```
 
 The reservation may contain additional Colyseus transport fields defined by the
-shared protocol schema. Creation is limited to 10 attempts per minute per
-anonymous player and socket address.
+shared protocol schema. Creation is limited independently by signed player and
+socket address. Defaults are 10 attempts per player and 60 per address each
+minute. The address ceiling prevents bypassing the player ceiling by repeatedly
+omitting the anonymous cookie and receiving a new identity.
 
 Creation sequence:
 
@@ -104,7 +106,8 @@ Request:
 
 The route validates the code syntax, normalizes it, looks up its room ID, and
 calls `joinById`; it never asks the matchmaker for an arbitrary room. Joining is
-limited to 20 attempts per minute per anonymous player and socket address.
+limited independently by signed player and socket address. Defaults are 20
+attempts per player and 120 per address each minute.
 
 ### Errors
 
@@ -165,18 +168,22 @@ game room in one documented flow:
 1. The lobby builds a trusted roster from its synchronized player rows: player
    ID, display name, host flag, and join order. No client payload contributes
    to the roster.
-2. The lobby marks itself `transitioning`, which rejects new joins, and calls
-   `startGameTransition`.
+2. The lobby marks itself `transitioning` and locks before its first asynchronous
+   transition step. New HTTP reservations and game selections are rejected
+   from this point, so no player can receive a lobby seat outside the frozen
+   game roster.
 3. `startGameTransition` creates the game room with the roster as trusted room
    options, reserves one seat per connected player with `joinById`, repoints
    the room-code directory entry to the game room, locks the game room, and
    attaches directory cleanup to its disposal.
-4. The lobby sends each connected client a `room:transition` message carrying
-   that player's own seat reservation, then disconnects itself after the
-   messages flush. The lobby's own disposal cleanup only deletes the directory
-   entry while it still points at the lobby.
-5. Each web client consumes its reservation with the game's synchronized state
-   class and replaces its single room connection; the lobby room is left.
+4. The lobby retains the issued reservations by session, sends each connected
+   client its own `room:transition`, and stays alive for the bounded transition
+   window. A client that drops after Start reconnects to the lobby and sends
+   `room:resume_transition`; the lobby resends only that session's existing
+   reservation. No new game seat or roster entry is created.
+5. Each web client installs its transition listener before requesting a pending
+   handoff, consumes the reservation with the game's synchronized state class,
+   and replaces its single room connection; the lobby room is left.
 6. The game room requires every roster player to connect within the configured
    transition deadline (`CAPITAL_PIN_TRANSITION_TIMEOUT_MS`, shared by every
    registered game). If any never arrives, it disconnects itself; unconsumed
@@ -198,8 +205,11 @@ who were in the lobby when the game started can participate.
 
 ## Leave, host transfer, reconnect, and disposal
 
-When a client leaves, the room removes its player. If the host leaves, the first
-remaining session in the room map becomes host; with no players the host ID is
+An unexpected lobby socket drop keeps the player row for a ten-second
+reconnection grace period and excludes that session from a new game roster
+while disconnected. A successful reconnect restores the same membership. An
+intentional leave or expired grace removes the player; if that player was host,
+the first remaining session becomes host. With no players the host ID is
 cleared. Colyseus controls the room's ultimate disposal policy.
 
 The web client uses the room's reconnection token after an unexpected socket
@@ -221,9 +231,15 @@ loop inside that room:
 - Capital Pin: `lobby -> round -> round-results -> finished -> lobby`.
 - Coin Rush: `lobby -> countdown -> playing -> round-result -> finished -> lobby`.
 - Falling Platforms: `lobby -> countdown -> playing -> results -> lobby`.
-- Flappy Race: `lobby -> countdown -> running -> round-result -> finished -> lobby`.
-- Golf Race: `lobby -> countdown -> aiming -> simulating -> round-result -> finished -> lobby`.
-- Kart Racing: `lobby -> countdown -> racing -> race-result -> finished -> lobby`.
+- Flappy Race: `lobby -> countdown -> running -> round-result -> finished -> lobby`; a
+  survivor who clears the finite course completes the round instead of flying
+  past the final obstacle forever.
+- Golf Race: `lobby -> countdown -> aiming -> simulating -> round-result -> finished -> lobby`;
+  each round has a five-minute ceiling, after which unfinished players are
+  ranked by authoritative course progress.
+- Kart Racing: `lobby -> countdown -> racing -> race-result -> finished -> lobby`; each race
+  has a three-minute ceiling, shortened after the first finisher, and unfinished
+  karts are ranked by authoritative progress.
 - Live Drawing & Guessing: `lobby -> preparing -> drawing -> result -> round-summary -> finished`.
 - Memory Path: `lobby -> preparing -> preview -> racing -> round-result -> match-result -> lobby`.
 - Four-Sided Pong: `lobby -> countdown -> running -> finished -> lobby`.

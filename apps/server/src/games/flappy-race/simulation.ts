@@ -124,6 +124,16 @@ function simulateStep(runtime: FlappyRaceRuntime, stepMs: number, now: number): 
       player.roundActive = false;
       player.eliminated = true;
       player.flapQueued = false;
+    } else if (
+      runtime.openings.length > 0 &&
+      player.clearedObstacleCount >= runtime.openings.length
+    ) {
+      // The generated course is finite. A bird that clears the last obstacle
+      // has completed the round; leaving it active here would make a perfect
+      // run continue forever with no obstacle left to resolve against.
+      player.roundActive = false;
+      player.eliminated = false;
+      player.flapQueued = false;
     }
   }
   evaluateRoundEnd(runtime, now);
