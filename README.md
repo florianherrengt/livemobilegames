@@ -165,6 +165,25 @@ The Vite dev proxy automatically follows `PORT`. Vite and Storybook fail
 instead of silently moving to another port when the configured one is taken,
 so a misconfigured worktree cannot quietly take over another worktree's port.
 
+### Faster game testing
+
+With `pnpm dev` already running, `pnpm play` opens two headed, phone-emulated
+Chromium windows and drops you straight into a two-player game: Alice creates a
+room, Bob joins, the host selects the requested game from the live catalogue,
+and both windows stay open so you can play immediately. Ctrl+C closes only the
+browser windows; the dev server you started keeps running.
+
+```bash
+pnpm play                  # default: Four-Sided Pong
+pnpm play --game golf
+pnpm play --game live-drawing-guessing
+```
+
+The command reads `WEB_PORT` (default 5173) and never starts or stops the
+server. If it says to start `pnpm dev` first, check that Vite and the Node
+server are up on the configured ports. If Playwright Chromium is missing, run
+`pnpm exec playwright install chromium`.
+
 ## Multiple worktrees
 
 Worktrees live in `.worktrees/` and each one gets its own non-conflicting port

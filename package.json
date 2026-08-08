@@ -15,6 +15,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @phone-party/protocol build && concurrently -k -n server,web -c blue,green \"pnpm --filter @phone-party/server dev\" \"pnpm --filter @phone-party/web dev\"",
+    "play": "node scripts/play-games.mjs",
     "worktree:create": "node scripts/worktree-create.mjs",
     "build": "pnpm -r build",
     "start": "pnpm --filter @phone-party/server start",
