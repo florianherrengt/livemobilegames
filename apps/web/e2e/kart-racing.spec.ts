@@ -127,8 +127,11 @@ async function drivePage(page: Page, maxMs: number): Promise<DriveStats> {
     }
     if ((await arena(page).count()) === 0) {
       const resultHeading = page.getByRole("heading", { name: /^Race \d+ result$/ });
-      if ((await resultHeading.count()) > 0) {
-        const race = Number((await resultHeading.textContent())?.match(/\d+/)?.[0] ?? 0);
+      // The result screen only lasts a moment in E2E mode. Bound the read so a
+      // heading that disappears mid-transition cannot stall the drive loop.
+      const resultText = await resultHeading.textContent({ timeout: 250 }).catch(() => null);
+      if (resultText !== null) {
+        const race = Number(resultText.match(/\d+/)?.[0] ?? 0);
         if (race > 0) {
           stats.resultRaces.add(race);
         }

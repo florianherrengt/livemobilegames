@@ -70,8 +70,8 @@ export interface KartRacingTrack {
 }
 
 /**
- * The first track: a wide-starting, rounded-rectangle circuit that teaches
- * every mechanic in the game brief. Direction of travel is clockwise.
+ * The first track: a wide, rounded-rectangle circuit that teaches every
+ * mechanic in the game brief. Direction of travel is clockwise.
  */
 export const KART_RACING_TRACK: KartRacingTrack = {
   id: "retro-circuit",
@@ -100,27 +100,27 @@ export const KART_RACING_TRACK: KartRacingTrack = {
     { x: 190, y: 880 },
     { x: 250, y: 980 },
   ],
-  roadHalfWidth: 95,
+  roadHalfWidth: 135,
   finishIndex: 0,
   checkpointIndexes: [5, 9, 12, 16, 20],
   walls: [
-    { from: { x: 150, y: 1150 }, to: { x: 1460, y: 1150 } },
-    { from: { x: 1460, y: 1150 }, to: { x: 1620, y: 900 } },
-    { from: { x: 1620, y: 900 }, to: { x: 1620, y: 250 } },
-    { from: { x: 1620, y: 250 }, to: { x: 1460, y: 80 } },
-    { from: { x: 1460, y: 80 }, to: { x: 150, y: 80 } },
-    { from: { x: 150, y: 80 }, to: { x: 80, y: 250 } },
-    { from: { x: 80, y: 250 }, to: { x: 80, y: 900 } },
-    { from: { x: 80, y: 900 }, to: { x: 150, y: 1150 } },
+    { from: { x: 145, y: 1215 }, to: { x: 1455, y: 1215 } },
+    { from: { x: 1455, y: 1215 }, to: { x: 1665, y: 915 } },
+    { from: { x: 1665, y: 915 }, to: { x: 1665, y: 245 } },
+    { from: { x: 1665, y: 245 }, to: { x: 1455, y: 15 } },
+    { from: { x: 1455, y: 15 }, to: { x: 145, y: 15 } },
+    { from: { x: 145, y: 15 }, to: { x: 35, y: 245 } },
+    { from: { x: 35, y: 245 }, to: { x: 35, y: 915 } },
+    { from: { x: 35, y: 915 }, to: { x: 145, y: 1215 } },
   ],
   obstacles: [
-    { x: 1470, y: 800, radius: 34 },
-    { x: 1560, y: 620, radius: 34 },
-    { x: 1470, y: 440, radius: 34 },
+    { x: 1475, y: 800, radius: 34 },
+    { x: 1545, y: 620, radius: 34 },
+    { x: 1475, y: 440, radius: 34 },
     { x: 600, y: 170, radius: 34 },
     { x: 900, y: 170, radius: 34 },
   ],
-  slowZones: [{ x: 1250, y: 1000, width: 180, height: 90 }],
+  slowZones: [{ x: 1230, y: 990, width: 220, height: 120 }],
   fallZones: [
     {
       points: [
@@ -132,18 +132,18 @@ export const KART_RACING_TRACK: KartRacingTrack = {
     },
     {
       points: [
-        { x: 95, y: 340 },
-        { x: 150, y: 340 },
-        { x: 150, y: 880 },
-        { x: 95, y: 880 },
+        { x: 55, y: 340 },
+        { x: 110, y: 340 },
+        { x: 110, y: 880 },
+        { x: 55, y: 880 },
       ],
     },
     {
       points: [
-        { x: 230, y: 340 },
-        { x: 285, y: 340 },
-        { x: 285, y: 880 },
-        { x: 230, y: 880 },
+        { x: 270, y: 340 },
+        { x: 325, y: 340 },
+        { x: 325, y: 880 },
+        { x: 270, y: 880 },
       ],
     },
   ],

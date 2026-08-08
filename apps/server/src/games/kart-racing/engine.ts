@@ -86,9 +86,10 @@ function simulateStep(runtime: KartRacingRuntime, stepMs: number, now: number): 
 }
 
 /**
- * Stops or redirects karts against the track's outer walls and static
- * obstacles. The kart is pushed back outside the solid geometry, its speed is
- * reduced, and its heading is reflected when it was moving into the surface.
+ * Stops or slows karts against the track's outer walls and static obstacles.
+ * The kart is pushed back outside the solid geometry and its speed is
+ * reduced, but its heading is left alone so contact slides instead of
+ * bouncing the kart back into traffic.
  */
 function resolveWorldCollisions(runtime: KartRacingRuntime): void {
   const config = runtime.settings.config;
@@ -101,7 +102,7 @@ function resolveWorldCollisions(runtime: KartRacingRuntime): void {
       const radius = config.KART_RADIUS + config.WALL_RADIUS;
       player.x = wall.x + wall.nx * radius;
       player.y = wall.y + wall.ny * radius;
-      applySurfaceImpact(player, wall.nx, wall.ny, config.WALL_SLOWDOWN);
+      applySurfaceImpact(player, config.WALL_SLOWDOWN);
       player.prevX = player.x;
       player.prevY = player.y;
       continue;
@@ -111,26 +112,15 @@ function resolveWorldCollisions(runtime: KartRacingRuntime): void {
       const radius = config.KART_RADIUS + obstacle.radius;
       player.x = obstacle.x + obstacle.nx * radius;
       player.y = obstacle.y + obstacle.ny * radius;
-      applySurfaceImpact(player, obstacle.nx, obstacle.ny, config.WALL_SLOWDOWN);
+      applySurfaceImpact(player, config.WALL_SLOWDOWN);
       player.prevX = player.x;
       player.prevY = player.y;
     }
   }
 }
 
-function applySurfaceImpact(player: RuntimePlayer, nx: number, ny: number, slowdown: number): void {
-  const vx = Math.cos(player.heading) * player.speed;
-  const vy = Math.sin(player.heading) * player.speed;
-  const intoSurface = vx * nx + vy * ny;
-  if (intoSurface < 0) {
-    const rx = vx - 2 * intoSurface * nx;
-    const ry = vy - 2 * intoSurface * ny;
-    const reflectedSpeed = Math.hypot(rx, ry) * slowdown;
-    player.speed = reflectedSpeed;
-    player.heading = Math.atan2(ry, rx);
-  } else {
-    player.speed *= slowdown;
-  }
+function applySurfaceImpact(player: RuntimePlayer, slowdown: number): void {
+  player.speed *= slowdown;
 }
 
 function resolveRespawns(runtime: KartRacingRuntime, now: number): void {
