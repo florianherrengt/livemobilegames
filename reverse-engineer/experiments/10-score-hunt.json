@@ -1,0 +1,11 @@
+{
+  "name": "score-hunt",
+  "rom": "roms/surround.bin",
+  "seed": 123,
+  "reset": true,
+  "ram_watch": [118],
+  "glyph_regions": [[0, 0, 160, 24]],
+  "steps": [
+    { "frames": 2000, "inputs": {}, "observe": true }
+  ]
+}

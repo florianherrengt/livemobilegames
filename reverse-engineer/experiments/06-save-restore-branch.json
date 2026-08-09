@@ -1,0 +1,14 @@
+{
+  "name": "06-save-restore-branch",
+  "rom": "roms/surround.bin",
+  "reset": true,
+  "setup": [
+    { "frames": 40, "inputs": { "1": ["RIGHT"] } }
+  ],
+  "save_state_after_setup": "branch_point",
+  "steps": [
+    { "frames": 25, "inputs": { "1": ["UP"] },    "restore_state": "branch_point" },
+    { "frames": 25, "inputs": { "1": ["DOWN"] },  "restore_state": "branch_point" },
+    { "frames": 25, "inputs": { "1": ["LEFT"] },  "restore_state": "branch_point" }
+  ]
+}

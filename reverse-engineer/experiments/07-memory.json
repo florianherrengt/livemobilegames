@@ -1,0 +1,10 @@
+{
+  "name": "07-memory",
+  "rom": "roms/surround.bin",
+  "reset": true,
+  "steps": [
+    { "frames": 10, "inputs": {}, "save_state": "t0" },
+    { "frames": 20, "inputs": { "1": ["RIGHT"] } },
+    { "frames": 20, "inputs": { "1": ["DOWN"] }, "restore_state": "t0" }
+  ]
+}

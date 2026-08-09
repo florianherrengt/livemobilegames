@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "game-lab"
+version = "0.1.0"
+description = "Generic experimentation framework for reverse-engineering old video games through a programmatically controlled emulator."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "game-lab" }]
+dependencies = [
+    "ale-py>=0.8",
+    "multi-agent-ale-py>=0.1.12",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pydantic>=2.5",
+    "typer>=0.9",
+    "pillow>=10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
+[project.scripts]
+game-lab = "game_lab.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/game_lab"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Framework runtime artifacts (observations, screenshots, states)
+runs/
+outputs/
+*.state
+state_*/
+artifacts/
+
+# but keep the fixtures
+!experiments/
+!tests/

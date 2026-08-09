@@ -1,0 +1,8 @@
+{
+  "name": "04-observe-changes",
+  "rom": "roms/surround.bin",
+  "reset": true,
+  "steps": [
+    { "frames": 20, "inputs": { "1": ["RIGHT"] }, "observe_per_frame": true }
+  ]
+}

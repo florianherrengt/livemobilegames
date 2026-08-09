@@ -1,0 +1,25 @@
+{
+  "name": "two-player-ports",
+  "adapter": "ale-stella-multi",
+  "rom": "roms/surround.bin",
+  "seed": 123,
+  "reset": true,
+  "ram_watch": [102, 124],
+  "steps": [
+    { "frames": 30, "inputs": {} }
+  ],
+  "probes": [
+    {
+      "name": "port1-vs-port2",
+      "frames": 42,
+      "inputs": [
+        {},
+        { "1": ["UP"] },
+        { "2": ["UP"] },
+        { "2": ["DOWN"] },
+        { "2": ["LEFT"] },
+        { "2": ["RIGHT"] }
+      ]
+    }
+  ]
+}

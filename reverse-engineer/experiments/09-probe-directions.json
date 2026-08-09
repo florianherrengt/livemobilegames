@@ -1,0 +1,24 @@
+{
+  "name": "probe-directions",
+  "rom": "roms/surround.bin",
+  "seed": 123,
+  "reset": true,
+  "ram_watch": [110, 115],
+  "steps": [
+    { "frames": 14, "inputs": {} }
+  ],
+  "probes": [
+    {
+      "name": "directions",
+      "frames": 42,
+      "inputs": [
+        {},
+        { "1": ["UP"] },
+        { "1": ["DOWN"] },
+        { "1": ["LEFT"] },
+        { "1": ["RIGHT"] },
+        { "1": ["BUTTON_1"] }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "02-advance-frames",
+  "rom": "roms/surround.bin",
+  "reset": true,
+  "steps": [
+    { "frames": 60, "inputs": {} },
+    { "frames": 30, "inputs": {} }
+  ]
+}

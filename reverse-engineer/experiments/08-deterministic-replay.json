@@ -1,0 +1,10 @@
+{
+  "name": "08-deterministic-replay",
+  "rom": "roms/surround.bin",
+  "reset": true,
+  "steps": [
+    { "frames": 30, "inputs": { "1": ["RIGHT"] } },
+    { "frames": 20, "inputs": { "1": ["DOWN", "BUTTON_1"] } },
+    { "frames": 10, "inputs": { "1": ["UP", "LEFT"] } }
+  ]
+}

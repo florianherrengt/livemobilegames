@@ -1,0 +1,9 @@
+{
+  "name": "05-screenshot",
+  "rom": "roms/surround.bin",
+  "reset": true,
+  "steps": [
+    { "frames": 30, "inputs": { "1": ["RIGHT"] }, "screenshot": "frame-30.png" },
+    { "frames": 30, "inputs": { "1": ["DOWN"] }, "screenshot": "frame-60.png" }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "03-controller-input",
+  "rom": "roms/surround.bin",
+  "reset": true,
+  "steps": [
+    { "frames": 30, "inputs": { "1": ["RIGHT"] } },
+    { "frames": 30, "inputs": { "1": ["DOWN"] } },
+    { "frames": 30, "inputs": { "1": ["LEFT"] } },
+    { "frames": 30, "inputs": { "1": ["UP", "BUTTON_1"] } }
+  ]
+}

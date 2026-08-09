@@ -1,0 +1,8 @@
+{
+  "name": "01-load-and-reset",
+  "rom": "roms/surround.bin",
+  "reset": true,
+  "steps": [
+    { "frames": 1, "inputs": {} }
+  ]
+}
