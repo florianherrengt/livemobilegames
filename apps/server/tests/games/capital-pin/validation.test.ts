@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CAPITALS } from "../../../src/games/capital-pin/capitals.js";
+import { CAPITAL_PIN_CONSTANTS } from "../../../src/games/capital-pin/constants.js";
 import { validateCapitalDataset } from "../../../src/games/capital-pin/validation.js";
 
 describe("capital dataset validation", () => {
@@ -8,15 +9,37 @@ describe("capital dataset validation", () => {
     expect(() => validateCapitalDataset(CAPITALS)).not.toThrow();
   });
 
-  it("uses the official capitals for Benin and Ivory Coast", () => {
-    expect(CAPITALS).toContainEqual(
-      expect.objectContaining({ city: "Porto-Novo", country: "Benin" }),
+  it("keeps a curated pool of 50 familiar national capitals", () => {
+    expect(CAPITALS).toHaveLength(50);
+    expect(CAPITALS.map((capital) => capital.city)).toEqual(
+      expect.arrayContaining([
+        "Paris",
+        "London",
+        "Rome",
+        "Madrid",
+        "Berlin",
+        "Lisbon",
+        "Amsterdam",
+        "Brussels",
+        "Vienna",
+        "Athens",
+        "Moscow",
+        "Washington, D.C.",
+        "Tokyo",
+        "Beijing",
+        "New Delhi",
+        "Cairo",
+        "Ottawa",
+        "Mexico City",
+        "Bangkok",
+        "Buenos Aires",
+      ]),
     );
-    expect(CAPITALS).toContainEqual(
-      expect.objectContaining({ city: "Yamoussoukro", country: "Ivory Coast" }),
-    );
-    expect(CAPITALS).not.toContainEqual(expect.objectContaining({ city: "Cotonou" }));
-    expect(CAPITALS).not.toContainEqual(expect.objectContaining({ city: "Abidjan" }));
+  });
+
+  it("excludes regional administrative centres and districts without a capital city", () => {
+    expect(CAPITALS).not.toContainEqual(expect.objectContaining({ city: "Cayenne" }));
+    expect(CAPITALS).not.toContainEqual(expect.objectContaining({ city: "Yaren" }));
   });
 
   it("rejects malformed entries", () => {
@@ -43,7 +66,11 @@ describe("capital dataset validation", () => {
     ).toThrow("Duplicate capital city/country pair");
   });
 
-  it("rejects datasets with fewer than 120 entries", () => {
-    expect(() => validateCapitalDataset(CAPITALS.slice(0, 10))).toThrow("at least 120 entries");
+  it("requires enough unique capitals for a complete match", () => {
+    const roundCount = CAPITAL_PIN_CONSTANTS.TOTAL_ROUNDS;
+    expect(() => validateCapitalDataset(CAPITALS.slice(0, roundCount))).not.toThrow();
+    expect(() => validateCapitalDataset(CAPITALS.slice(0, roundCount - 1))).toThrow(
+      `at least ${roundCount} entries`,
+    );
   });
 });

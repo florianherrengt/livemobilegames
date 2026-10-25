@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { CAPITALS } from "./capitals.js";
+import { CAPITAL_PIN_CONSTANTS } from "./constants.js";
 import type { Capital } from "./types.js";
 
 const capitalSchema = z.object({
@@ -42,9 +43,9 @@ export function validateCapitalDataset(capitals: readonly Capital[] = CAPITALS):
     pairs.add(key);
   }
 
-  if (capitals.length < 120) {
+  if (capitals.length < CAPITAL_PIN_CONSTANTS.TOTAL_ROUNDS) {
     throw new Error(
-      `Capital dataset must contain at least 120 entries (found ${capitals.length}).`,
+      `Capital dataset must contain at least ${CAPITAL_PIN_CONSTANTS.TOTAL_ROUNDS} entries (found ${capitals.length}).`,
     );
   }
 }

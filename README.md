@@ -31,7 +31,7 @@ signal.
 
 Inside a room the host can share an invite link (or QR code), copy the room code, and every player can see the live player list with host and “you” markers. Opening a room link on another phone lets that player join directly.
 
-Capital Pin plays 10 rounds. Each round names a capital city and every phone
+Capital Pin plays 10 rounds, chosen from 50 familiar national capitals. Every phone
 drops a pin on a world map; the closest guess wins the round. The server keeps
 the answer secret until the round ends, owns all timing and scoring, and
 finishes with a leaderboard and a host-only play-again option.
