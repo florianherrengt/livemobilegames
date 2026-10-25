@@ -114,15 +114,23 @@ export function RoomPage() {
   const selfSessionId = connection.room.sessionId;
 
   if (connection.reconnecting) {
+    const frenchDrawing = isLiveDrawingGuessingState(roomState) && roomState.language === "fr";
     return (
-      <Container component="main" maxWidth="sm" sx={{ py: { xs: 2.5, sm: 4 } }}>
+      <Container
+        component="main"
+        lang={frenchDrawing ? "fr" : "en"}
+        maxWidth="sm"
+        sx={{ py: { xs: 2.5, sm: 4 } }}
+      >
         <Paper component="section" aria-labelledby="reconnecting-heading" sx={{ p: 2.25 }}>
           <Stack spacing={1}>
             <Typography component="h2" variant="h2" id="reconnecting-heading">
-              Reconnecting…
+              {frenchDrawing ? "Reconnexion…" : "Reconnecting…"}
             </Typography>
             <Typography color="text.secondary">
-              Your connection to the room was lost. Trying to reconnect.
+              {frenchDrawing
+                ? "La connexion à la partie a été perdue. Tentative de reconnexion."
+                : "Your connection to the room was lost. Trying to reconnect."}
             </Typography>
           </Stack>
         </Paper>
@@ -252,11 +260,13 @@ export function RoomPage() {
 
   if (isLiveDrawingGuessingState(roomState)) {
     return (
-      <Box sx={{ position: "relative", height: "100dvh" }}>
+      <Box lang={roomState.language} sx={{ position: "relative", height: "100dvh" }}>
         <Suspense
           fallback={
             <Paper sx={{ p: 2.25, m: 2 }}>
-              <Typography>Loading game…</Typography>
+              <Typography>
+                {roomState.language === "fr" ? "Chargement du jeu…" : "Loading game…"}
+              </Typography>
             </Paper>
           }
         >

@@ -62,6 +62,7 @@ export function syncLiveDrawingGuessingState(
   runtime: LiveDrawingRuntime,
 ): void {
   const turnChanged = state.turnNumber !== runtime.turnNumber;
+  state.language = runtime.settings.language;
   state.phase = runtime.phase;
   state.roundNumber = runtime.roundNumber;
   state.totalRounds = runtime.totalRounds;

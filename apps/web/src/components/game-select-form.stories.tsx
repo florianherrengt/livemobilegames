@@ -12,6 +12,15 @@ const games = [
     maxPlayers: 8,
     orientation: "portrait",
   },
+  {
+    id: "live-drawing-guessing",
+    name: "Live Drawing & Guessing",
+    description: "Draw a secret word while everyone else guesses it live.",
+    version: 1,
+    minPlayers: 2,
+    maxPlayers: 8,
+    orientation: "portrait",
+  },
 ] as const;
 
 const meta = {
@@ -19,6 +28,10 @@ const meta = {
   component: GameSelectForm,
   parameters: {
     layout: "padded",
+  },
+  args: {
+    language: "en",
+    onSelectLanguage: () => undefined,
   },
 } satisfies Meta<typeof GameSelectForm>;
 
@@ -59,4 +72,18 @@ export const GuestSelected: Story = {
     isHost: false,
     onSelect: () => undefined,
   },
+};
+
+export const DrawingFrenchHost: Story = {
+  args: {
+    games,
+    selectedGameId: "live-drawing-guessing",
+    isHost: true,
+    language: "fr",
+    onSelect: () => undefined,
+  },
+};
+
+export const DrawingFrenchGuest: Story = {
+  args: { ...DrawingFrenchHost.args, isHost: false },
 };

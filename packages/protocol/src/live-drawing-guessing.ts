@@ -3,6 +3,10 @@ import { z } from "zod";
 
 export const LIVE_DRAWING_GUESSING_GAME_ID = "live-drawing-guessing";
 
+export const liveDrawingLanguageSchema = z.enum(["en", "fr"]);
+
+export type LiveDrawingLanguage = z.infer<typeof liveDrawingLanguageSchema>;
+
 // --- Phases ---
 
 export const liveDrawingGuessingPhaseSchema = z.enum([
@@ -226,6 +230,7 @@ export class LiveDrawingResultState extends Schema {
 export class LiveDrawingGuessingState extends Schema {
   @type("string") roomCode = "";
   @type("string") gameId = "";
+  @type("string") language: LiveDrawingLanguage = "en";
   @type("string") hostSessionId = "";
   @type("string") phase: LiveDrawingGuessingPhase = "lobby";
   @type("number") roundNumber = 0;

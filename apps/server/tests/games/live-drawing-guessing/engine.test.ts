@@ -22,12 +22,17 @@ import {
   startMatch,
 } from "../../../src/games/live-drawing-guessing/engine.js";
 import { createSeededIntRng } from "../../../src/games/live-drawing-guessing/rng.js";
-import { WORD_POOL } from "../../../src/games/live-drawing-guessing/words.js";
+import {
+  FRENCH_WORD_POOL,
+  letterCount,
+  WORD_POOL,
+} from "../../../src/games/live-drawing-guessing/words.js";
 
-function testSettings(): LiveDrawingSettings {
+function testSettings(language: "en" | "fr" = "en"): LiveDrawingSettings {
   const config = LIVE_DRAWING_GUESSING_SERVER_CONSTANTS;
   return {
     config,
+    language,
     e2eMode: false,
     preparationMs: 3_000,
     turnDurationMs: 60_000,
@@ -71,6 +76,16 @@ describe("match start and turn order", () => {
       expect(player.score).toBe(0);
       expect(player.isSpectator).toBe(false);
     }
+  });
+
+  it("draws French prompts and localized categories when the match language is French", () => {
+    const runtime = runtimeWithPlayers(testSettings("fr"), ["Alice", "Bob"]);
+    startMatch(runtime, 1_000);
+    expect(FRENCH_WORD_POOL.some((entry) => entry.word === runtime.word)).toBe(true);
+    expect(WORD_POOL.some((entry) => entry.word === runtime.word)).toBe(false);
+    expect(runtime.category).toBe(
+      FRENCH_WORD_POOL.find((entry) => entry.word === runtime.word)?.category,
+    );
   });
 
   it("uses the same random order for every round", () => {
@@ -165,6 +180,24 @@ describe("letter reveals", () => {
     expect(runtime.pattern).toEqual(["_", "A", "_", "A", "_", "_"]);
   });
 
+  it("counts and reveals accented French letters while preserving their spelling", () => {
+    const runtime = startTwoPlayerMatch();
+    runtime.word = "éléphant";
+    runtime.pattern = Array.from(runtime.word, () => "_");
+    beginDrawing(runtime, 10_000);
+    const reveal = runtime.reveal;
+    if (reveal === null) {
+      throw new Error("Expected a reveal plan");
+    }
+    expect(reveal.positions).toHaveLength(letterCount("éléphant"));
+    reveal.positions = [0, 1, 2, 3, 4, 5, 6, 7];
+    reveal.nextIndex = 0;
+    reveal.nextRevealAt = 10_001;
+    reveal.intervalMs = 1;
+    advanceReveals(runtime, 10_001);
+    expect(runtime.pattern[0]).toBe("É");
+  });
+
   it("stops all reveals once the turn is resolved", () => {
     const runtime = startTwoPlayerMatch();
     beginDrawing(runtime, 10_000);
@@ -189,6 +222,14 @@ describe("guess matching", () => {
     expect(normalizeGuess("  Ice   Cream  ")).toBe("ice cream");
     expect(matchesAnswer("Ice  Cream", "ice cream")).toBe(true);
     expect(matchesAnswer("  GIRAFFE ", "giraffe")).toBe(true);
+  });
+
+  it("accepts French guesses without accents and preserves spacing rules", () => {
+    expect(normalizeGuess("  ÉLÉPHANT  ", "fr")).toBe("elephant");
+    expect(matchesAnswer("elephant", "éléphant", "fr")).toBe(true);
+    expect(matchesAnswer("e\u0301le\u0301phant", "éléphant", "fr")).toBe(true);
+    expect(matchesAnswer("pomme   de terre", "pomme de terre", "fr")).toBe(true);
+    expect(matchesAnswer("éléphant", "elephant", "en")).toBe(false);
   });
 
   it("rejects aliases, missing words, plurals, and near-misses", () => {

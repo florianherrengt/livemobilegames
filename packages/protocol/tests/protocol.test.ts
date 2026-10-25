@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   createRoomRequestSchema,
   gameManifestSchema,
+  LobbyRoomState,
   normalizeRoomCode,
   roomCodeSchema,
   selectGameRequestSchema,
+  selectLanguageRequestSchema,
 } from "../src/index.js";
 
 describe("game manifest schema", () => {
@@ -80,5 +82,15 @@ describe("create room request schema", () => {
     const invalid = selectGameRequestSchema.safeParse({ gameId: "Invalid_Game" });
     expect(valid.success).toBe(true);
     expect(invalid.success).toBe(false);
+  });
+
+  it("accepts only supported lobby languages without forged fields", () => {
+    expect(new LobbyRoomState().language).toBe("en");
+    for (const language of ["en", "fr"]) {
+      expect(selectLanguageRequestSchema.parse({ language })).toEqual({ language });
+    }
+    for (const payload of [{}, { language: "de" }, { language: "fr", isHost: true }]) {
+      expect(selectLanguageRequestSchema.safeParse(payload).success).toBe(false);
+    }
   });
 });

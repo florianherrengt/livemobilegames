@@ -268,6 +268,14 @@ private word through a `drawer:briefing` message and can request it again with
 `drawer:request`; guessers see only the category, a progressive letter pattern,
 and the live synchronized strokes.
 
+In the platform lobby, the host chooses English (the default) or French for
+everyone using `select_language`. The validated choice is synchronized with the
+lobby and passed as a trusted option to the drawing room. It selects the word
+pool, category hints, and the entire drawing-game interface, and stays selected
+for rematches. French guesses ignore accents as well as case and repeated
+whitespace; the displayed answer and progressively revealed letters retain
+their original accents. The language cannot change during a match.
+
 Two behaviors intentionally differ from the other installed games:
 
 - The game room unlocks itself as soon as a match starts. A player who joins by

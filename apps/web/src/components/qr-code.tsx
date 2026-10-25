@@ -1,8 +1,15 @@
 import { Box, CircularProgress, Stack, Typography } from "@mui/material";
+import type { LiveDrawingLanguage } from "@phone-party/protocol";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 
-export function QrCode({ value }: { value: string }) {
+export function QrCode({
+  value,
+  language = "en",
+}: {
+  value: string;
+  language?: LiveDrawingLanguage;
+}) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -27,7 +34,9 @@ export function QrCode({ value }: { value: string }) {
     return (
       <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", justifyContent: "center" }}>
         <CircularProgress size={20} aria-hidden="true" />
-        <Typography color="text.secondary">Generating QR code…</Typography>
+        <Typography color="text.secondary" lang={language}>
+          {language === "fr" ? "Génération du code QR…" : "Generating QR code…"}
+        </Typography>
       </Stack>
     );
   }
@@ -35,7 +44,7 @@ export function QrCode({ value }: { value: string }) {
     <Box
       component="img"
       src={dataUrl}
-      alt={`QR code for ${value}`}
+      alt={language === "fr" ? `Code QR pour ${value}` : `QR code for ${value}`}
       sx={{
         width: 180,
         height: 180,

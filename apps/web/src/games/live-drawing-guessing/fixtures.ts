@@ -3,6 +3,7 @@ import {
   LIVE_DRAWING_GUESSING_GAME_ID,
   type LiveDrawingGuessingPhase,
   LiveDrawingGuessingState,
+  type LiveDrawingLanguage,
   LiveDrawingLeaderboardEntryState,
   LiveDrawingPlayerState,
   LiveDrawingResultState,
@@ -99,11 +100,13 @@ export function makeLiveDrawingGuessingState(
     roundNumber?: number | undefined;
     result?: "solved" | "timeout" | "skipped" | "no-guessers" | undefined;
     tie?: boolean | undefined;
+    language?: LiveDrawingLanguage | undefined;
   } = {},
 ): LiveDrawingGuessingState {
   const state = new LiveDrawingGuessingState();
   state.roomCode = "ABC234";
   state.gameId = LIVE_DRAWING_GUESSING_GAME_ID;
+  state.language = options.language ?? "en";
   state.hostSessionId = "alice-session";
   state.phase = phase;
   state.totalRounds = 3;
@@ -125,18 +128,22 @@ export function makeLiveDrawingGuessingState(
     state.prepareEndsAt = Date.now() + 2_000;
   }
   if (phase === "drawing") {
-    state.wordCategory = "Animal";
+    state.wordCategory = state.language === "fr" ? "Animal" : "Animal";
     state.letterPattern.push("_", "_", "_", "_", "_", "_", "_");
     state.drawingEndsAt = Date.now() + 30_000;
     addStroke(state, "#000000", [100, 100, 200, 150, 300, 260]);
     addStroke(state, "#e02424", [350, 300, 420, 380, 500, 420]);
   }
   if (phase === "result") {
-    state.wordCategory = "Animal";
+    state.wordCategory = state.language === "fr" ? "Animal" : "Animal";
     state.letterPattern.push("P", "_", "N", "G", "U", "I", "N");
     state.resultEndsAt = Date.now() + 1_000;
     addStroke(state, "#000000", [100, 100, 200, 150, 300, 260]);
     addTurnResult(state, options.result ?? "solved");
+    if (state.language === "fr" && state.lastResult !== null) {
+      state.lastResult.word = "PINGOUIN";
+      state.lastResult.category = "Animal";
+    }
     if (
       options.result !== "timeout" &&
       options.result !== "skipped" &&

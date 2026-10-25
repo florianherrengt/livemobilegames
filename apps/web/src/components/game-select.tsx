@@ -1,5 +1,5 @@
 import { Alert, Paper, Stack, Typography } from "@mui/material";
-import type { LobbyRoomState } from "@phone-party/protocol";
+import { type LobbyRoomState, ROOM_MESSAGE_TYPES } from "@phone-party/protocol";
 import { useEffect, useRef, useState } from "react";
 
 import { apiErrorMessage } from "../api.js";
@@ -80,6 +80,11 @@ export function GameSelect({
         selectedGameId={state.gameId}
         isHost={isHost}
         onSelect={selectGame}
+        language={state.language}
+        onSelectLanguage={(language) => {
+          setSelectionError(null);
+          connection.room.send(ROOM_MESSAGE_TYPES.selectLanguage, { language });
+        }}
       />
       {selectionError !== null && <Alert severity="error">{selectionError}</Alert>}
     </>

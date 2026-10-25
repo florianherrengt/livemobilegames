@@ -1,5 +1,9 @@
 import { matchMaker } from "@colyseus/core";
-import type { ISeatReservation } from "@phone-party/protocol";
+import {
+  type ISeatReservation,
+  LIVE_DRAWING_GUESSING_GAME_ID,
+  type LiveDrawingLanguage,
+} from "@phone-party/protocol";
 
 import type { GameRegistry } from "../games/game-registry.js";
 import { attachDirectoryCleanup } from "./directory-cleanup.js";
@@ -33,6 +37,7 @@ export async function startGameTransition(
   input: {
     roomCode: string;
     gameId: string;
+    language: LiveDrawingLanguage;
     players: readonly TransitionPlayer[];
     e2eMode: boolean;
     e2eTurnDurationMs: number | undefined;
@@ -49,6 +54,7 @@ export async function startGameTransition(
     definition.roomType,
     {
       roomCode: input.roomCode,
+      ...(input.gameId === LIVE_DRAWING_GUESSING_GAME_ID ? { language: input.language } : {}),
       players: input.players.map((player) => ({
         playerId: player.playerId,
         playerName: player.playerName,

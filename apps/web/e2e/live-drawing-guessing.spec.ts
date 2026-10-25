@@ -99,8 +99,8 @@ async function drawStroke(page: Page, seed: number): Promise<void> {
   await page.mouse.up();
 }
 
-async function submitGuess(page: Page, word: string): Promise<void> {
-  await page.getByLabel("Your guess").fill(word);
+async function submitGuess(page: Page, word: string, language: "en" | "fr"): Promise<void> {
+  await page.getByLabel(language === "fr" ? "Votre réponse" : "Your guess").fill(word);
   await page.getByTestId("ldg-guess-submit").tap();
 }
 
@@ -133,126 +133,169 @@ async function dropSocketAndObserveReconnect(page: Page): Promise<void> {
   );
 }
 
-test("two phones play a complete Live Drawing & Guessing match", async ({ browser }) => {
-  test.setTimeout(120_000);
+for (const language of ["en", "fr"] as const) {
+  test(`two phones play a complete Live Drawing & Guessing match (${language})`, async ({
+    browser,
+  }) => {
+    test.setTimeout(120_000);
 
-  const alice = await openPhone(browser);
-  const bob = await openPhone(browser);
+    const alice = await openPhone(browser);
+    const bob = await openPhone(browser);
 
-  const code = await createRoom(alice, "Alice");
-  expect(code).toMatch(/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/);
-  await joinRoom(bob, "Bob", code);
-  await expect(alice.getByText(/Players \(2\)/)).toBeVisible({ timeout: 15_000 });
-  await expect(bob.getByText(/Players \(2\)/)).toBeVisible({ timeout: 15_000 });
+    const code = await createRoom(alice, "Alice");
+    expect(code).toMatch(/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/);
+    await joinRoom(bob, "Bob", code);
+    await expect(alice.getByText(/Players \(2\)/)).toBeVisible({ timeout: 15_000 });
+    await expect(bob.getByText(/Players \(2\)/)).toBeVisible({ timeout: 15_000 });
 
-  await alice.getByRole("combobox", { name: "Choose a game" }).click();
-  await alice.getByRole("option", { name: "Live Drawing & Guessing" }).click();
-  await alice.getByRole("button", { name: "Start game" }).click();
+    await alice.getByRole("combobox", { name: "Choose a game" }).click();
+    await alice.getByRole("option", { name: "Live Drawing & Guessing" }).click();
+    await expect(alice.getByRole("combobox", { name: "Language / Langue" })).toHaveText("English");
+    if (language === "fr") {
+      await alice.getByRole("combobox", { name: "Language / Langue" }).click();
+      await alice.getByRole("option", { name: "Français" }).click();
+      await expect(bob.getByText("Langue : Français")).toBeVisible();
+      await expect(bob.getByRole("combobox", { name: "Language / Langue" })).toHaveCount(0);
+      for (const page of [alice, bob]) {
+        await page.setViewportSize({ width: 320, height: 568 });
+      }
+      await alice.screenshot({ path: test.info().outputPath("french-lobby.png"), fullPage: true });
+    }
+    await alice.getByRole("button", { name: "Start game" }).click();
 
-  await canvas(alice).waitFor({ timeout: 15_000 });
-  await canvas(bob).waitFor({ timeout: 15_000 });
-  await expect(alice.getByText("How to play Live Drawing & Guessing")).toBeVisible();
-  await expect(bob.getByText("How to play Live Drawing & Guessing")).toBeVisible();
+    await canvas(alice).waitFor({ timeout: 15_000 });
+    await canvas(bob).waitFor({ timeout: 15_000 });
+    const rules =
+      language === "fr"
+        ? "Comment jouer au dessin et devinettes"
+        : "How to play Live Drawing & Guessing";
+    await expect(alice.getByText(rules)).toBeVisible();
+    await expect(bob.getByText(rules)).toBeVisible();
 
-  // A third independent browser joins after play starts. The unlocked drawing
-  // room admits Carol as a spectator without changing the frozen six-turn
-  // participant order.
-  const carol = await openPhone(browser);
-  await joinRunningDrawingRoom(carol, "Carol", code);
-  await expect(carol.getByText("Spectating").first()).toBeVisible();
-  await expect(carol.getByLabel("Your guess")).toHaveCount(0);
-  await expect(canvas(carol)).toHaveAttribute("data-interactive", "false");
-
-  // Play all six turns: draw, let the guesser read the word from the drawer's
-  // private screen, submit it, and confirm both phones advance together.
-  for (let turn = 1; turn <= 6; turn += 1) {
-    await waitForTurn(alice, turn);
-    await waitForTurn(bob, turn);
-    await waitForPhase(alice, "drawing");
-    await waitForPhase(bob, "drawing");
-
-    const drawerIsAlice = (await alice.getByTestId("ldg-drawer-word").count()) === 1;
-    const drawer = drawerIsAlice ? alice : bob;
-    const guesser = drawerIsAlice ? bob : alice;
-    const word = await drawerWord(drawer);
-
-    await drawStroke(drawer, turn);
-    // Diagnostic: confirm the drawer's own canvas echoed the stroke and the
-    // turn is still active before checking the guesser.
-    await expect
-      .poll(
-        async () => [
-          Number(await drawer.locator('[data-testid="ldg-canvas"]').getAttribute("data-strokes")),
-          await drawer.locator('[data-testid="ldg-canvas"]').getAttribute("data-phase"),
-          await drawer.locator('[data-testid="ldg-canvas"]').getAttribute("data-turn"),
-        ],
-        { timeout: 2_000 },
-      )
-      .not.toEqual([0, `drawing`, String(turn)]);
-    // The stroke synchronizes to the guesser's live canvas.
-    await expect
-      .poll(
-        async () =>
-          Number(await guesser.locator('[data-testid="ldg-canvas"]').getAttribute("data-strokes")),
-        { timeout: 5_000 },
-      )
-      .toBeGreaterThan(0);
-
-    await submitGuess(guesser, word);
-    // The first correct guess ends the turn immediately; both phones show the
-    // result and then move to the next turn (or the final board).
-    await expect
-      .poll(
-        async () => [
-          await alice.locator('[data-testid="ldg-canvas"]').getAttribute("data-phase"),
-          await alice.locator('[data-testid="ldg-canvas"]').getAttribute("data-turn"),
-        ],
-        { timeout: 10_000 },
-      )
-      .not.toEqual([`drawing`, String(turn)]);
-    await expect
-      .poll(
-        async () => [
-          await bob.locator('[data-testid="ldg-canvas"]').getAttribute("data-phase"),
-          await bob.locator('[data-testid="ldg-canvas"]').getAttribute("data-turn"),
-        ],
-        { timeout: 10_000 },
-      )
-      .not.toEqual([`drawing`, String(turn)]);
-  }
-
-  await expect(alice.getByTestId("ldg-leaderboard")).toBeVisible({ timeout: 15_000 });
-  await expect(bob.getByTestId("ldg-leaderboard")).toBeVisible({ timeout: 15_000 });
-  await expect(carol.getByTestId("ldg-leaderboard")).toBeVisible({ timeout: 15_000 });
-  await expect(alice.getByText("Joint winners")).toBeVisible();
-  await expect(alice.getByTestId("ldg-leaderboard")).toContainText("6 points");
-  await expect(bob.getByTestId("ldg-leaderboard")).toContainText("6 points");
-
-  // Host rematch returns to turn 1 with a fresh match.
-  await alice.getByTestId("ldg-play-again").tap();
-  await waitForTurn(alice, 1);
-  await waitForTurn(bob, 1);
-  await waitForTurn(carol, 1);
-  await expect(carol.getByText(/Turn 1\/9/)).toBeVisible();
-  await expect(carol.getByText("Spectating")).toHaveCount(0);
-
-  // The room is now old enough for the SDK's real reconnection path. Drop
-  // Bob's live game socket and verify that the same phone returns to the
-  // rematch instead of remaining on stale controls.
-  await waitForPhase(bob, "drawing");
-  await dropSocketAndObserveReconnect(bob);
-  await expect(canvas(bob)).toBeVisible();
-
-  // The game stays usable at the 320px minimum width without page scroll.
-  for (const page of [alice, bob, carol]) {
-    await page.setViewportSize({ width: 320, height: 568 });
-    const noHorizontalScroll = await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth,
+    // A third independent browser joins after play starts. The unlocked drawing
+    // room admits Carol as a spectator without changing the frozen six-turn
+    // participant order.
+    const carol = await openPhone(browser);
+    await joinRunningDrawingRoom(carol, "Carol", code);
+    const spectating = language === "fr" ? "Spectateur" : "Spectating";
+    await expect(carol.getByText(spectating).first()).toBeVisible();
+    await expect(carol.getByLabel(language === "fr" ? "Votre réponse" : "Your guess")).toHaveCount(
+      0,
     );
-    expect(noHorizontalScroll).toBe(true);
-  }
+    await expect(canvas(carol)).toHaveAttribute("data-interactive", "false");
 
-  await alice.close();
-  await bob.close();
-  await carol.close();
-});
+    // Play all six turns: draw, let the guesser read the word from the drawer's
+    // private screen, submit it, and confirm both phones advance together.
+    for (let turn = 1; turn <= 6; turn += 1) {
+      await waitForTurn(alice, turn);
+      await waitForTurn(bob, turn);
+      await waitForPhase(alice, "drawing");
+      await waitForPhase(bob, "drawing");
+
+      const drawerIsAlice = (await alice.getByTestId("ldg-drawer-word").count()) === 1;
+      const drawer = drawerIsAlice ? alice : bob;
+      const guesser = drawerIsAlice ? bob : alice;
+      const word = await drawerWord(drawer);
+
+      if (language === "fr" && turn === 1) {
+        await expect(guesser.getByText(/^Catégorie : /)).toBeVisible();
+        await expect(guesser.getByRole("button", { name: "Valider" })).toBeVisible();
+        for (const page of [drawer, guesser]) {
+          expect(
+            await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+          ).toBe(true);
+        }
+        await drawer.screenshot({ path: test.info().outputPath("french-drawer.png") });
+        await guesser.screenshot({ path: test.info().outputPath("french-guesser.png") });
+      }
+
+      await drawStroke(drawer, turn);
+      // Diagnostic: confirm the drawer's own canvas echoed the stroke and the
+      // turn is still active before checking the guesser.
+      await expect
+        .poll(
+          async () => [
+            Number(await drawer.locator('[data-testid="ldg-canvas"]').getAttribute("data-strokes")),
+            await drawer.locator('[data-testid="ldg-canvas"]').getAttribute("data-phase"),
+            await drawer.locator('[data-testid="ldg-canvas"]').getAttribute("data-turn"),
+          ],
+          { timeout: 2_000 },
+        )
+        .not.toEqual([0, `drawing`, String(turn)]);
+      // The stroke synchronizes to the guesser's live canvas.
+      await expect
+        .poll(
+          async () =>
+            Number(
+              await guesser.locator('[data-testid="ldg-canvas"]').getAttribute("data-strokes"),
+            ),
+          { timeout: 5_000 },
+        )
+        .toBeGreaterThan(0);
+
+      await submitGuess(guesser, word.normalize("NFD").replace(/\p{M}/gu, ""), language);
+      // The first correct guess ends the turn immediately; both phones show the
+      // result and then move to the next turn (or the final board).
+      await expect
+        .poll(
+          async () => [
+            await alice.locator('[data-testid="ldg-canvas"]').getAttribute("data-phase"),
+            await alice.locator('[data-testid="ldg-canvas"]').getAttribute("data-turn"),
+          ],
+          { timeout: 10_000 },
+        )
+        .not.toEqual([`drawing`, String(turn)]);
+      await expect
+        .poll(
+          async () => [
+            await bob.locator('[data-testid="ldg-canvas"]').getAttribute("data-phase"),
+            await bob.locator('[data-testid="ldg-canvas"]').getAttribute("data-turn"),
+          ],
+          { timeout: 10_000 },
+        )
+        .not.toEqual([`drawing`, String(turn)]);
+    }
+
+    await expect(alice.getByTestId("ldg-leaderboard")).toBeVisible({ timeout: 15_000 });
+    await expect(bob.getByTestId("ldg-leaderboard")).toBeVisible({ timeout: 15_000 });
+    await expect(carol.getByTestId("ldg-leaderboard")).toBeVisible({ timeout: 15_000 });
+    await expect(alice.getByText(language === "fr" ? "Égalité" : "Joint winners")).toBeVisible();
+    await expect(alice.getByTestId("ldg-leaderboard")).toContainText("6 points");
+    await expect(bob.getByTestId("ldg-leaderboard")).toContainText("6 points");
+    if (language === "fr") {
+      await expect(alice.getByRole("button", { name: "Rejouer" })).toBeVisible();
+      await alice.screenshot({
+        path: test.info().outputPath("french-results.png"),
+        fullPage: true,
+      });
+    }
+
+    // Host rematch returns to turn 1 with a fresh match.
+    await alice.getByTestId("ldg-play-again").tap();
+    await waitForTurn(alice, 1);
+    await waitForTurn(bob, 1);
+    await waitForTurn(carol, 1);
+    await expect(carol.getByText(language === "fr" ? /Tour 1\/9/ : /Turn 1\/9/)).toBeVisible();
+    await expect(carol.getByText(spectating)).toHaveCount(0);
+
+    // The room is now old enough for the SDK's real reconnection path. Drop
+    // Bob's live game socket and verify that the same phone returns to the
+    // rematch instead of remaining on stale controls.
+    await waitForPhase(bob, "drawing");
+    await dropSocketAndObserveReconnect(bob);
+    await expect(canvas(bob)).toBeVisible();
+
+    // The game stays usable at the 320px minimum width without page scroll.
+    for (const page of [alice, bob, carol]) {
+      await page.setViewportSize({ width: 320, height: 568 });
+      const noHorizontalScroll = await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      );
+      expect(noHorizontalScroll).toBe(true);
+    }
+
+    await alice.close();
+    await bob.close();
+    await carol.close();
+  });
+}

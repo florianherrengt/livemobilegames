@@ -17,12 +17,14 @@ function makeArgs(
     bobSpectator?: boolean;
     result?: "solved" | "timeout" | "skipped" | "no-guessers";
     tie?: boolean;
+    language?: "en" | "fr";
   } = {},
 ) {
   const state = makeLiveDrawingGuessingState(phase, {
     bobSpectator: options.bobSpectator,
     result: options.result,
     tie: options.tie,
+    language: options.language,
   });
   const selfSessionId = options.selfSessionId ?? "alice-session";
   const { connection, emit } = makeRoomConnection(state, selfSessionId);
@@ -33,11 +35,11 @@ function WithBriefing({ args, children }: { args: StoryArgs; children: React.Rea
   useEffect(() => {
     const emit = (args as StoryArgs & { emit: (type: string, payload: unknown) => void }).emit;
     emit(LIVE_DRAWING_GUESSING_MESSAGE_TYPES.drawerBriefing, {
-      word: "penguin",
-      category: "Animal",
+      word: args.state.language === "fr" ? "pingouin" : "penguin",
+      category: args.state.language === "fr" ? "Animal" : "Animal",
       turnNumber: 1,
       roundNumber: 1,
-      letterCount: 7,
+      letterCount: args.state.language === "fr" ? 8 : 7,
     });
   }, [args]);
   return <>{children}</>;
@@ -122,6 +124,26 @@ export const Finished: Story = {
 export const TiedFinished: Story = {
   render,
   args: makeArgs("finished", { tie: true }),
+};
+
+export const FrenchLobby: Story = {
+  render,
+  args: makeArgs("lobby", { language: "fr" }),
+};
+
+export const FrenchDrawingGuesser: Story = {
+  render,
+  args: makeArgs("drawing", { selfSessionId: "bob-session", language: "fr" }),
+};
+
+export const FrenchResult: Story = {
+  render,
+  args: makeArgs("result", { language: "fr", result: "solved" }),
+};
+
+export const FrenchFinished: Story = {
+  render,
+  args: makeArgs("finished", { language: "fr" }),
 };
 
 export const NarrowPhoneDrawer: Story = {

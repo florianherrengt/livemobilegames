@@ -1,5 +1,6 @@
 import { type Client, ErrorCode, Room, type RoomOptions, ServerError } from "@colyseus/core";
 import {
+  type LiveDrawingLanguage,
   LobbyPlayerState,
   LobbyRoomState,
   ROOM_MESSAGE_TYPES,
@@ -7,6 +8,7 @@ import {
   roomOptionsSchema,
   seatOptionsSchema,
   selectGameRequestSchema,
+  selectLanguageRequestSchema,
   startGameRequestSchema,
 } from "@phone-party/protocol";
 
@@ -36,6 +38,7 @@ export type LobbyRoomDeps = {
   readonly startGameTransition: (input: {
     roomCode: string;
     gameId: string;
+    language: LiveDrawingLanguage;
     players: readonly TransitionPlayer[];
     e2eMode: boolean;
     e2eTurnDurationMs: number | undefined;
@@ -102,6 +105,23 @@ export function createLobbyRoomClass(
         this.state.gameId = game.manifest.id;
       });
 
+      this.onMessage(ROOM_MESSAGE_TYPES.selectLanguage, (client, message: unknown) => {
+        const selected = selectLanguageRequestSchema.safeParse(message);
+        if (!selected.success) {
+          sendLobbyError(client, "INVALID_REQUEST", "Invalid language selection");
+          return;
+        }
+        if (client.sessionId !== this.state.hostSessionId) {
+          sendLobbyError(client, "NOT_HOST", "Only the host can choose a language");
+          return;
+        }
+        if (this.transitioning) {
+          sendLobbyError(client, "GAME_ALREADY_STARTED", "The game is already starting");
+          return;
+        }
+        this.state.language = selected.data.language;
+      });
+
       this.onMessage(ROOM_MESSAGE_TYPES.startGame, (client, message: unknown) => {
         const parsedStart = startGameRequestSchema.safeParse(message);
         if (!parsedStart.success) {
@@ -164,6 +184,7 @@ export function createLobbyRoomClass(
             deps.startGameTransition({
               roomCode: this.state.roomCode,
               gameId,
+              language: this.state.language,
               players: connected,
               e2eMode: deps.e2eMode,
               e2eTurnDurationMs: deps.e2eTurnDurationMs,

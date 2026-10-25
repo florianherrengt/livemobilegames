@@ -1,4 +1,5 @@
 import { Button, Paper, Stack, Typography } from "@mui/material";
+import type { LiveDrawingLanguage } from "@phone-party/protocol";
 import { useEffect, useRef, useState } from "react";
 
 import { QrCode } from "./qr-code.js";
@@ -19,7 +20,13 @@ async function copyText(text: string): Promise<boolean> {
   return ok;
 }
 
-export function InvitePanel({ code }: { code: string }) {
+export function InvitePanel({
+  code,
+  language = "en",
+}: {
+  code: string;
+  language?: LiveDrawingLanguage;
+}) {
   const [copied, setCopied] = useState<"code" | "link" | null>(null);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inviteUrl = `${window.location.origin}/room/${code}`;
@@ -49,17 +56,20 @@ export function InvitePanel({ code }: { code: string }) {
 
   const share = async (): Promise<void> => {
     try {
-      await navigator.share({ title: "Join my Phone Party room", url: inviteUrl });
+      await navigator.share({
+        title: language === "fr" ? "Rejoignez ma partie Phone Party" : "Join my Phone Party room",
+        url: inviteUrl,
+      });
     } catch {
       // User cancelled the share sheet; no error UI needed.
     }
   };
 
   return (
-    <Paper component="section" aria-labelledby="invite-heading" sx={{ p: 2.25 }}>
+    <Paper component="section" lang={language} aria-labelledby="invite-heading" sx={{ p: 2.25 }}>
       <Stack spacing={2} sx={{ alignItems: "stretch", textAlign: "center" }}>
-        <Typography component="h2" variant="h2" id="invite-heading">
-          Invite players
+        <Typography component="h2" variant="h2" id="invite-heading" lang={language}>
+          {language === "fr" ? "Inviter des joueurs" : "Invite players"}
         </Typography>
         <Typography
           data-testid="room-code"
@@ -72,18 +82,30 @@ export function InvitePanel({ code }: { code: string }) {
         </Typography>
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
           <Button type="button" onClick={() => copy("code", code)} fullWidth>
-            {copied === "code" ? "Copied!" : "Copy code"}
+            {copied === "code"
+              ? language === "fr"
+                ? "Copié !"
+                : "Copied!"
+              : language === "fr"
+                ? "Copier le code"
+                : "Copy code"}
           </Button>
           <Button type="button" onClick={() => copy("link", inviteUrl)} fullWidth>
-            {copied === "link" ? "Copied!" : "Copy invite link"}
+            {copied === "link"
+              ? language === "fr"
+                ? "Copié !"
+                : "Copied!"
+              : language === "fr"
+                ? "Copier le lien d’invitation"
+                : "Copy invite link"}
           </Button>
           {canShare && (
             <Button type="button" onClick={share} fullWidth>
-              Share
+              {language === "fr" ? "Partager" : "Share"}
             </Button>
           )}
         </Stack>
-        <QrCode value={inviteUrl} />
+        <QrCode value={inviteUrl} language={language} />
       </Stack>
     </Paper>
   );

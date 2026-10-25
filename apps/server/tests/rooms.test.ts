@@ -9,6 +9,7 @@ import {
   LobbyRoomState,
   ROOM_MESSAGE_TYPES,
   type RoomTransition,
+  roomErrorPayloadSchema,
 } from "@phone-party/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -493,6 +494,46 @@ describe("room integration", () => {
     aliceRoom.send("select_game", { gameId: "missing-game" });
     await waitFor(() => errorMessage !== null);
     expect(errorMessage).toContain("Game not found");
+  });
+
+  it("shares the host's language, rejects invalid or forged choices, and keeps it on host transfer", async () => {
+    const createdBody = expectRoomSuccess((await createRoom(test, "Alice")).body);
+    const alice = await test.testServer.sdk.consumeSeatReservation(
+      createdBody.reservation,
+      LobbyRoomState,
+    );
+    const joinedBody = expectRoomSuccess((await joinRoom(test, createdBody.room.code, "Bob")).body);
+    const bob = await test.testServer.sdk.consumeSeatReservation(
+      joinedBody.reservation,
+      LobbyRoomState,
+    );
+    await waitFor(() => alice.state.players.size === 2 && bob.state.players.size === 2);
+    expect(alice.state.language).toBe("en");
+    const errors: string[] = [];
+    alice.onMessage(ROOM_MESSAGE_TYPES.error, (payload: unknown) => {
+      errors.push(roomErrorPayloadSchema.parse(payload).code);
+    });
+    bob.onMessage(ROOM_MESSAGE_TYPES.error, (payload: unknown) => {
+      errors.push(roomErrorPayloadSchema.parse(payload).code);
+    });
+
+    bob.send(ROOM_MESSAGE_TYPES.selectLanguage, { language: "fr" });
+    await waitFor(() => errors.length === 1);
+    expect(errors[0]).toBe("NOT_HOST");
+    expect(alice.state.language).toBe("en");
+    alice.send(ROOM_MESSAGE_TYPES.selectLanguage, { language: "de" });
+    alice.send(ROOM_MESSAGE_TYPES.selectLanguage, { language: "fr", isHost: true });
+    await waitFor(() => errors.length === 3);
+    expect(errors.slice(1)).toEqual(["INVALID_REQUEST", "INVALID_REQUEST"]);
+    expect(alice.state.language).toBe("en");
+
+    alice.send(ROOM_MESSAGE_TYPES.selectLanguage, { language: "fr" });
+    await waitFor(() => alice.state.language === "fr" && bob.state.language === "fr");
+    await alice.leave();
+    await waitFor(() => bob.state.hostSessionId === bob.sessionId);
+    expect(bob.state.language).toBe("fr");
+    bob.send(ROOM_MESSAGE_TYPES.selectLanguage, { language: "en" });
+    await waitFor(() => bob.state.language === "en");
   });
 
   it("uses the platform lobby room type for matchmaking", async () => {

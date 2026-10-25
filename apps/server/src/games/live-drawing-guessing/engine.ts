@@ -1,16 +1,17 @@
 import {
   LIVE_DRAWING_GUESSING_GAME_ID,
   type LiveDrawingGuessingPhase,
+  type LiveDrawingLanguage,
 } from "@phone-party/protocol";
 
 import { LIVE_DRAWING_GUESSING_SERVER_CONSTANTS } from "./constants.js";
 import { createCryptoIntRng, createSeededIntRng, type IntRng, shuffle } from "./rng.js";
 import {
   buildLetterPattern,
+  type LocalizedWordCategory,
   letterCount,
-  WORD_POOL,
-  type WordCategory,
   type WordEntry,
+  wordPoolForLanguage,
 } from "./words.js";
 
 export type { LiveDrawingGuessingPhase };
@@ -19,6 +20,7 @@ export type LiveDrawingTurnOutcome = "solved" | "timeout" | "skipped" | "no-gues
 
 export interface LiveDrawingSettings {
   config: typeof LIVE_DRAWING_GUESSING_SERVER_CONSTANTS;
+  language: LiveDrawingLanguage;
   e2eMode: boolean;
   preparationMs: number;
   turnDurationMs: number;
@@ -46,7 +48,7 @@ export interface RuntimePlayer {
 
 export interface TurnResultRecord {
   word: string;
-  category: WordCategory;
+  category: LocalizedWordCategory;
   outcome: LiveDrawingTurnOutcome;
   drawerPlayerId: string;
   winnerPlayerId: string;
@@ -91,7 +93,7 @@ export interface LiveDrawingRuntime {
   order: string[];
   drawerPlayerId: string;
   word: string;
-  category: WordCategory;
+  category: LocalizedWordCategory;
   pattern: string[];
   reveal: RevealState | null;
   prepareEndsAt: number;
@@ -107,10 +109,15 @@ export interface LiveDrawingRuntime {
   settings: LiveDrawingSettings;
 }
 
-export function createSettings(e2eMode: boolean, turnDurationMs?: number): LiveDrawingSettings {
+export function createSettings(
+  e2eMode: boolean,
+  turnDurationMs?: number,
+  language: LiveDrawingLanguage = "en",
+): LiveDrawingSettings {
   const constants = LIVE_DRAWING_GUESSING_SERVER_CONSTANTS;
   return {
     config: constants,
+    language,
     e2eMode,
     preparationMs: e2eMode ? constants.E2E_PREPARATION_MS : constants.PREPARATION_MS,
     turnDurationMs: e2eMode
@@ -197,7 +204,10 @@ export function startMatch(runtime: LiveDrawingRuntime, now: number): void {
   runtime.totalRounds = runtime.settings.config.TOTAL_ROUNDS;
   runtime.totalTurns = runtime.order.length * runtime.settings.config.TOTAL_ROUNDS;
   runtime.result = null;
-  runtime.wordDeck = shuffle([...WORD_POOL], runtime.settings.wordRng);
+  runtime.wordDeck = shuffle(
+    [...wordPoolForLanguage(runtime.settings.language)],
+    runtime.settings.wordRng,
+  );
 
   for (const player of runtime.players.values()) {
     player.score = 0;
@@ -402,12 +412,17 @@ export function finishMatch(runtime: LiveDrawingRuntime): void {
   runtime.result = buildMatchResult(runtime);
 }
 
-export function normalizeGuess(text: string): string {
-  return text.toLowerCase().trim().replace(/\s+/g, " ");
+export function normalizeGuess(text: string, language: LiveDrawingLanguage = "en"): string {
+  const normalized = language === "fr" ? text.normalize("NFD").replace(/\p{M}/gu, "") : text;
+  return normalized.toLowerCase().trim().replace(/\s+/g, " ");
 }
 
-export function matchesAnswer(guess: string, answer: string): boolean {
-  return normalizeGuess(guess) === normalizeGuess(answer);
+export function matchesAnswer(
+  guess: string,
+  answer: string,
+  language: LiveDrawingLanguage = "en",
+): boolean {
+  return normalizeGuess(guess, language) === normalizeGuess(answer, language);
 }
 
 export function revealIntervalMs(turnDurationMs: number, letters: number): number {
@@ -453,7 +468,10 @@ function drawWord(runtime: LiveDrawingRuntime): WordEntry {
   if (runtime.wordDeck.length === 0) {
     // The pool was exhausted mid-match; reshuffle a fresh deck rather than
     // repeating words unnecessarily.
-    runtime.wordDeck = shuffle([...WORD_POOL], runtime.settings.wordRng);
+    runtime.wordDeck = shuffle(
+      [...wordPoolForLanguage(runtime.settings.language)],
+      runtime.settings.wordRng,
+    );
   }
   const entry = runtime.wordDeck.pop();
   if (entry === undefined) {
@@ -466,7 +484,7 @@ function revealPatternPosition(runtime: LiveDrawingRuntime, letterPosition: numb
   let letterIndex = 0;
   for (let index = 0; index < runtime.word.length; index += 1) {
     const char = runtime.word[index];
-    if (char === undefined || !/[A-Za-z]/.test(char)) {
+    if (char === undefined || !/\p{L}/u.test(char)) {
       continue;
     }
     if (letterIndex === letterPosition) {

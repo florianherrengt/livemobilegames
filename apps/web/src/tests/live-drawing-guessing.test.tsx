@@ -81,6 +81,77 @@ describe("LiveDrawingGuessingGameView", () => {
     ).toBeInTheDocument();
   });
 
+  it("translates the French lobby and invite actions", () => {
+    const state = makeLiveDrawingGuessingState("lobby", { language: "fr" });
+    renderGame(state);
+    expect(screen.getByRole("main")).toHaveAttribute("lang", "fr");
+    expect(screen.getByRole("heading", { name: "Dessin et devinettes" })).toBeInTheDocument();
+    expect(screen.getByText("Joueurs (2)")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Inviter des joueurs" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copier le code" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Quitter la partie" })).toBeInTheDocument();
+  });
+
+  it("translates the drawer instructions and renders the French server category", () => {
+    const state = makeLiveDrawingGuessingState("preparing", { language: "fr" });
+    const { emit } = renderGame(state);
+    act(() => {
+      emit(LIVE_DRAWING_GUESSING_MESSAGE_TYPES.drawerBriefing, {
+        word: "pingouin",
+        category: "Animal",
+        turnNumber: 1,
+        roundNumber: 1,
+        letterCount: 8,
+      });
+    });
+    expect(screen.getByText("C’est à vous de dessiner")).toBeInTheDocument();
+    expect(screen.getByText("Catégorie : Animal")).toBeInTheDocument();
+    expect(screen.getByText("Comment jouer au dessin et devinettes")).toBeInTheDocument();
+    expect(screen.getAllByText("Dessinez le mot. N’écrivez ni lettres ni chiffres.")).toHaveLength(
+      2,
+    );
+  });
+
+  it("translates French guesser input and private feedback", () => {
+    const state = makeLiveDrawingGuessingState("drawing", { language: "fr" });
+    const { emit } = renderGame(state, "bob-session");
+    expect(screen.getByLabelText("Votre réponse")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Valider" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Dessin en cours")).toBeInTheDocument();
+    act(() => {
+      emit(LIVE_DRAWING_GUESSING_MESSAGE_TYPES.guessFeedback, { kind: "not-active" });
+    });
+    expect(screen.getByTestId("ldg-guess-feedback")).toHaveTextContent(
+      "Les réponses ne sont pas encore ouvertes",
+    );
+  });
+
+  it("translates the French result, scores, and final play-again action", () => {
+    const result = makeLiveDrawingGuessingState("result", {
+      language: "fr",
+      result: "solved",
+    });
+    renderGame(result, "bob-session");
+    expect(
+      screen.getByRole("heading", { name: "Bob a trouvé le mot en premier !" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Le mot était :")).toBeInTheDocument();
+    expect(screen.getByTestId("ldg-result-word")).toHaveTextContent("PINGOUIN");
+
+    const finished = makeLiveDrawingGuessingState("finished", { language: "fr" });
+    const { unmount } = render(
+      <LiveDrawingGuessingGameView
+        connection={makeRoomConnection(finished).connection}
+        state={finished}
+        selfSessionId="alice-session"
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Alice a gagné !" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Classement" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rejouer" })).toBeInTheDocument();
+    unmount();
+  });
+
   it("shows the drawer the private word and category from the briefing", () => {
     const state = makeLiveDrawingGuessingState("preparing");
     const { emit } = renderGame(state);

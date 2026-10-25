@@ -1,3 +1,5 @@
+import type { LiveDrawingLanguage } from "@phone-party/protocol";
+
 /**
  * Curated word pool for exact-answer matching.
  *
@@ -20,9 +22,23 @@ export const WORD_CATEGORIES = [
 
 export type WordCategory = (typeof WORD_CATEGORIES)[number];
 
+export const FRENCH_WORD_CATEGORIES = [
+  "Animal",
+  "Nourriture",
+  "Objet",
+  "Lieu",
+  "Nature",
+  "Personne",
+  "Action",
+  "Transport",
+] as const;
+
+export type FrenchWordCategory = (typeof FRENCH_WORD_CATEGORIES)[number];
+export type LocalizedWordCategory = WordCategory | FrenchWordCategory;
+
 export interface WordEntry {
   readonly word: string;
-  readonly category: WordCategory;
+  readonly category: LocalizedWordCategory;
 }
 
 export const WORD_POOL: readonly WordEntry[] = [
@@ -207,6 +223,162 @@ export const WORD_POOL: readonly WordEntry[] = [
   { word: "train", category: "Transport" },
 ] as const;
 
+/** Curated French prompts, using NFC spelling and the same eight categories. */
+export const FRENCH_WORD_POOL: readonly WordEntry[] = [
+  { word: "cheval", category: "Animal" },
+  { word: "lapin", category: "Animal" },
+  { word: "grenouille", category: "Animal" },
+  { word: "canard", category: "Animal" },
+  { word: "lion", category: "Animal" },
+  { word: "tigre", category: "Animal" },
+  { word: "ours", category: "Animal" },
+  { word: "singe", category: "Animal" },
+  { word: "éléphant", category: "Animal" },
+  { word: "girafe", category: "Animal" },
+  { word: "zèbre", category: "Animal" },
+  { word: "serpent", category: "Animal" },
+  { word: "araignée", category: "Animal" },
+  { word: "pingouin", category: "Animal" },
+  { word: "tortue", category: "Animal" },
+  { word: "kangourou", category: "Animal" },
+  { word: "baleine", category: "Animal" },
+  { word: "crabe", category: "Animal" },
+  { word: "requin", category: "Animal" },
+  { word: "dauphin", category: "Animal" },
+  { word: "pomme", category: "Nourriture" },
+  { word: "banane", category: "Nourriture" },
+  { word: "orange", category: "Nourriture" },
+  { word: "citron", category: "Nourriture" },
+  { word: "raisin", category: "Nourriture" },
+  { word: "cerise", category: "Nourriture" },
+  { word: "carotte", category: "Nourriture" },
+  { word: "pomme de terre", category: "Nourriture" },
+  { word: "tomate", category: "Nourriture" },
+  { word: "oignon", category: "Nourriture" },
+  { word: "pain", category: "Nourriture" },
+  { word: "fromage", category: "Nourriture" },
+  { word: "pizza", category: "Nourriture" },
+  { word: "gâteau", category: "Nourriture" },
+  { word: "hamburger", category: "Nourriture" },
+  { word: "soupe", category: "Nourriture" },
+  { word: "lait", category: "Nourriture" },
+  { word: "pâtes", category: "Nourriture" },
+  { word: "céréale", category: "Nourriture" },
+  { word: "salade", category: "Nourriture" },
+  { word: "livre", category: "Objet" },
+  { word: "chaise", category: "Objet" },
+  { word: "table", category: "Objet" },
+  { word: "lampe", category: "Objet" },
+  { word: "horloge", category: "Objet" },
+  { word: "serrure", category: "Objet" },
+  { word: "porte", category: "Objet" },
+  { word: "fenêtre", category: "Objet" },
+  { word: "miroir", category: "Objet" },
+  { word: "cuillère", category: "Objet" },
+  { word: "fourchette", category: "Objet" },
+  { word: "couteau", category: "Objet" },
+  { word: "assiette", category: "Objet" },
+  { word: "bouteille", category: "Objet" },
+  { word: "parapluie", category: "Objet" },
+  { word: "sac à dos", category: "Objet" },
+  { word: "valise", category: "Objet" },
+  { word: "portefeuille", category: "Objet" },
+  { word: "caméra", category: "Objet" },
+  { word: "ordinateur", category: "Objet" },
+  { word: "échelle", category: "Objet" },
+  { word: "marteau", category: "Objet" },
+  { word: "corde", category: "Objet" },
+  { word: "ballon", category: "Objet" },
+  { word: "cerf-volant", category: "Objet" },
+  { word: "maison", category: "Lieu" },
+  { word: "école", category: "Lieu" },
+  { word: "hôpital", category: "Lieu" },
+  { word: "château", category: "Lieu" },
+  { word: "église", category: "Lieu" },
+  { word: "pont", category: "Lieu" },
+  { word: "ferme", category: "Lieu" },
+  { word: "parc", category: "Lieu" },
+  { word: "plage", category: "Lieu" },
+  { word: "désert", category: "Lieu" },
+  { word: "archipel", category: "Lieu" },
+  { word: "village", category: "Lieu" },
+  { word: "ville", category: "Lieu" },
+  { word: "aéroport", category: "Lieu" },
+  { word: "stade", category: "Lieu" },
+  { word: "musée", category: "Lieu" },
+  { word: "bibliothèque", category: "Lieu" },
+  { word: "magasin", category: "Lieu" },
+  { word: "marché", category: "Lieu" },
+  { word: "hôtel", category: "Lieu" },
+  { word: "lune", category: "Nature" },
+  { word: "étoile", category: "Nature" },
+  { word: "nuage", category: "Nature" },
+  { word: "pluie", category: "Nature" },
+  { word: "neige", category: "Nature" },
+  { word: "flamme", category: "Nature" },
+  { word: "rivière", category: "Nature" },
+  { word: "lagune", category: "Nature" },
+  { word: "océan", category: "Nature" },
+  { word: "montagne", category: "Nature" },
+  { word: "colline", category: "Nature" },
+  { word: "arbre", category: "Nature" },
+  { word: "fleur", category: "Nature" },
+  { word: "herbe", category: "Nature" },
+  { word: "feuille", category: "Nature" },
+  { word: "rocher", category: "Nature" },
+  { word: "volcan", category: "Nature" },
+  { word: "arc-en-ciel", category: "Nature" },
+  { word: "éclair", category: "Nature" },
+  { word: "cascade", category: "Nature" },
+  { word: "médecin", category: "Personne" },
+  { word: "infirmière", category: "Personne" },
+  { word: "professeur", category: "Personne" },
+  { word: "fermier", category: "Personne" },
+  { word: "pompier", category: "Personne" },
+  { word: "cuisinier", category: "Personne" },
+  { word: "pilote", category: "Personne" },
+  { word: "astronaute", category: "Personne" },
+  { word: "monarque", category: "Personne" },
+  { word: "reine", category: "Personne" },
+  { word: "prince", category: "Personne" },
+  { word: "princesse", category: "Personne" },
+  { word: "pirate", category: "Personne" },
+  { word: "clown", category: "Personne" },
+  { word: "bébé", category: "Personne" },
+  { word: "soldat", category: "Personne" },
+  { word: "chanteur", category: "Personne" },
+  { word: "danseur", category: "Personne" },
+  { word: "nager", category: "Action" },
+  { word: "danser", category: "Action" },
+  { word: "chanter", category: "Action" },
+  { word: "lire", category: "Action" },
+  { word: "écrire", category: "Action" },
+  { word: "cuisiner", category: "Action" },
+  { word: "dormir", category: "Action" },
+  { word: "dessiner", category: "Action" },
+  { word: "peindre", category: "Action" },
+  { word: "grimper", category: "Action" },
+  { word: "frapper", category: "Action" },
+  { word: "lancer", category: "Action" },
+  { word: "bateau", category: "Transport" },
+  { word: "navire", category: "Transport" },
+  { word: "camion", category: "Transport" },
+  { word: "vélo", category: "Transport" },
+  { word: "moto", category: "Transport" },
+  { word: "hélicoptère", category: "Transport" },
+  { word: "fusée", category: "Transport" },
+  { word: "sous-marin", category: "Transport" },
+  { word: "tracteur", category: "Transport" },
+  { word: "trottinette", category: "Transport" },
+  { word: "canoë", category: "Transport" },
+  { word: "taxi", category: "Transport" },
+  { word: "train", category: "Transport" },
+] as const;
+
+export function wordPoolForLanguage(language: LiveDrawingLanguage): readonly WordEntry[] {
+  return language === "fr" ? FRENCH_WORD_POOL : WORD_POOL;
+}
+
 /**
  * Count only alphabetical letters: spaces, hyphens, apostrophes, and other
  * punctuation never count toward the pattern length or reveal interval.
@@ -214,7 +386,7 @@ export const WORD_POOL: readonly WordEntry[] = [
 export function letterCount(word: string): number {
   let count = 0;
   for (const char of word) {
-    if (/[A-Za-z]/.test(char)) {
+    if (/\p{L}/u.test(char)) {
       count += 1;
     }
   }
@@ -231,7 +403,7 @@ export function buildLetterPattern(word: string, revealed: readonly number[] = [
   const pattern: string[] = [];
   let letterIndex = 0;
   for (const char of word) {
-    if (/[A-Za-z]/.test(char)) {
+    if (/\p{L}/u.test(char)) {
       pattern.push(revealedSet.has(letterIndex) ? char.toUpperCase() : "_");
       letterIndex += 1;
     } else {

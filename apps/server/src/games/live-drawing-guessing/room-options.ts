@@ -1,4 +1,4 @@
-import { playerNameSchema, roomCodeSchema } from "@phone-party/protocol";
+import { liveDrawingLanguageSchema, playerNameSchema, roomCodeSchema } from "@phone-party/protocol";
 import { z } from "zod";
 
 import { LIVE_DRAWING_GUESSING_SERVER_CONSTANTS } from "./constants.js";
@@ -11,6 +11,7 @@ import { LIVE_DRAWING_GUESSING_SERVER_CONSTANTS } from "./constants.js";
  */
 export const liveDrawingGuessingRoomOptionsSchema = z.object({
   roomCode: roomCodeSchema,
+  language: liveDrawingLanguageSchema.default("en"),
   players: z
     .array(
       z.object({

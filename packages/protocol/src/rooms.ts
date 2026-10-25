@@ -1,6 +1,7 @@
 import type { ISeatReservation } from "@colyseus/shared-types";
 import { z } from "zod";
 import { gameIdSchema, gameManifestSchema } from "./games.js";
+import { liveDrawingLanguageSchema } from "./live-drawing-guessing.js";
 
 /**
  * Wire message types shared by the server and the web client. The lobby and
@@ -8,6 +9,7 @@ import { gameIdSchema, gameManifestSchema } from "./games.js";
  */
 export const ROOM_MESSAGE_TYPES = {
   selectGame: "select_game",
+  selectLanguage: "select_language",
   startGame: "start_game",
   resumeTransition: "room:resume_transition",
   transition: "room:transition",
@@ -128,6 +130,14 @@ export const selectGameRequestSchema = z.object({
 });
 
 export type SelectGameRequest = z.infer<typeof selectGameRequestSchema>;
+
+export const selectLanguageRequestSchema = z
+  .object({
+    language: liveDrawingLanguageSchema,
+  })
+  .strict();
+
+export type SelectLanguageRequest = z.infer<typeof selectLanguageRequestSchema>;
 
 export const startGameRequestSchema = z.object({}).strict();
 

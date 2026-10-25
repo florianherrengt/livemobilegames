@@ -16,7 +16,7 @@ import {
   LIVE_DRAWING_GUESSING_ROOM_TYPE,
 } from "../../../src/games/live-drawing-guessing/definition.js";
 import { createSeededIntRng, shuffle } from "../../../src/games/live-drawing-guessing/rng.js";
-import { WORD_POOL } from "../../../src/games/live-drawing-guessing/words.js";
+import { FRENCH_WORD_POOL, WORD_POOL } from "../../../src/games/live-drawing-guessing/words.js";
 import {
   cookieValue,
   createTestConfig,
@@ -153,9 +153,10 @@ function waitForMessage(room: MessageRoom, type: string, timeoutMs = 5_000): Pro
  * The word for turn N is therefore deterministic, so real-socket tests can
  * submit correct guesses without depending on private-briefing arrival order.
  */
-function e2eWordForTurn(turnNumber: number): string {
+function e2eWordForTurn(turnNumber: number, language: "en" | "fr" = "en"): string {
+  const pool = language === "fr" ? FRENCH_WORD_POOL : WORD_POOL;
   const deck = shuffle(
-    [...WORD_POOL],
+    [...pool],
     createSeededIntRng(LIVE_DRAWING_GUESSING_SERVER_CONSTANTS.E2E_WORD_SEED),
   );
   const entry = deck[deck.length - turnNumber];
@@ -183,7 +184,10 @@ function authContext() {
   return { token: ROOM_CREATION_TOKEN, headers: new Headers(), ip: "internal" };
 }
 
-async function createDirectRoom(count = 2, options: { e2eTurnDurationMs?: number } = {}) {
+async function createDirectRoom(
+  count = 2,
+  options: { e2eTurnDurationMs?: number; language?: "en" | "fr" } = {},
+) {
   const players = playerIds(count);
   const room = await matchMaker.create(
     LIVE_DRAWING_GUESSING_ROOM_TYPE,
@@ -191,6 +195,7 @@ async function createDirectRoom(count = 2, options: { e2eTurnDurationMs?: number
       roomCode: "ABCDEF",
       players,
       e2eMode: true,
+      ...(options.language === undefined ? {} : { language: options.language }),
       transitionTimeoutMs: 5_000,
       roomCreationToken: ROOM_CREATION_TOKEN,
       ...(options.e2eTurnDurationMs === undefined
@@ -265,7 +270,11 @@ function selfPlayer(room: SendRoom) {
  * word from the drawer's private briefing, have one connected guesser submit
  * it, and wait for the solved result.
  */
-async function playSolvedTurn(rooms: readonly SendRoom[], turnNumber: number): Promise<string> {
+async function playSolvedTurn(
+  rooms: readonly SendRoom[],
+  turnNumber: number,
+  language: "en" | "fr" = "en",
+): Promise<string> {
   const alice = rooms[0];
   if (!alice) {
     throw new Error("No rooms");
@@ -273,12 +282,12 @@ async function playSolvedTurn(rooms: readonly SendRoom[], turnNumber: number): P
   await waitForTurn(alice, turnNumber);
   await waitForPhase(alice, "drawing", 10_000);
   const drawerId = alice.state.drawerPlayerId;
-  const word = e2eWordForTurn(turnNumber);
+  const word = e2eWordForTurn(turnNumber, language);
   const guesser = participantRooms(rooms).find((room) => selfPlayer(room).playerId !== drawerId);
   if (!guesser) {
     throw new Error("No guesser room");
   }
-  guess(guesser, word);
+  guess(guesser, word.normalize("NFD").replace(/\p{M}/gu, ""));
   await waitFor(() => alice.state.phase === "result", 5_000);
   expect(alice.state.lastResult?.outcome).toBe("solved");
   expect(alice.state.lastResult?.word).toBe(word);
@@ -365,6 +374,69 @@ describe("Live Drawing and Guessing room integration", () => {
     expect(bob.state.result).not.toBeNull();
     expect(alice.state.turnNumber).toBe(6);
   }, 60_000);
+
+  it("uses French prompts, accepts accentless guesses, and keeps French on rematch", async () => {
+    await stopTestPlatform(test);
+    test = await createTestPlatform(
+      createGameRegistry([createLiveDrawingGuessingGameDefinition(ROOM_CREATION_TOKEN)]),
+      createTestConfig({ ...E2E_CONFIG, LOBBY_MAX_CLIENTS: "8" }),
+      ROOM_CREATION_TOKEN,
+    );
+    const created = await createRoomHttp(test, "Alice");
+    const aliceLobby = await consumeLobby(test, created.body.reservation);
+    await waitFor(() => aliceLobby.state.roomCode === created.body.room.code);
+    const joined = await joinRoomHttp(test, created.body.room.code, "Bob");
+    const bobLobby = await consumeLobby(test, joined.body.reservation);
+    const joinedCarol = await joinRoomHttp(test, created.body.room.code, "Carol");
+    const carolLobby = await consumeLobby(test, joinedCarol.body.reservation);
+    const joinedDave = await joinRoomHttp(test, created.body.room.code, "Dave");
+    const daveLobby = await consumeLobby(test, joinedDave.body.reservation);
+    await waitFor(() => aliceLobby.state.players.size === 4);
+
+    aliceLobby.send(ROOM_MESSAGE_TYPES.selectLanguage, { language: "fr" });
+    await waitFor(() =>
+      [aliceLobby, bobLobby, carolLobby, daveLobby].every((lobby) => lobby.state.language === "fr"),
+    );
+    const transitions = [aliceLobby, bobLobby, carolLobby, daveLobby].map(waitForTransition);
+    aliceLobby.send("select_game", { gameId: "live-drawing-guessing" });
+    await waitFor(() => aliceLobby.state.gameId === "live-drawing-guessing");
+    aliceLobby.send("start_game", {});
+    const payloads = await Promise.all(transitions);
+    const rooms = await Promise.all(
+      payloads.map((payload) => consumeGame(test, payload.reservation)),
+    );
+    const alice = rooms[0];
+    if (!alice) {
+      throw new Error("No rooms");
+    }
+    await waitForPhase(alice, "preparing", 10_000);
+    expect(alice.state.language).toBe("fr");
+
+    const seenWords = new Set<string>();
+    for (let turn = 1; turn <= 12; turn += 1) {
+      const word = await playSolvedTurn(rooms, turn, "fr");
+      expect(FRENCH_WORD_POOL.some((entry) => entry.word === word)).toBe(true);
+      seenWords.add(word);
+    }
+    expect(seenWords.size).toBe(12);
+    expect([...seenWords].some((word) => /[\u00c0-\u024f]/u.test(word))).toBe(true);
+    await waitForPhase(alice, "finished", 10_000);
+    expect(alice.state.language).toBe("fr");
+
+    alice.send(ROOM_MESSAGE_TYPES.playAgain, {});
+    await waitForPhase(alice, "drawing", 10_000);
+    expect(alice.state.language).toBe("fr");
+    expect([
+      "Animal",
+      "Nourriture",
+      "Objet",
+      "Lieu",
+      "Nature",
+      "Personne",
+      "Action",
+      "Transport",
+    ]).toContain(alice.state.wordCategory);
+  }, 90_000);
 
   it("awards only the first correct guess and keeps guesses private", async () => {
     const { reservations } = await createDirectRoom(3);

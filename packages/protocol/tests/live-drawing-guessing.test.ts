@@ -9,6 +9,7 @@ import {
   liveDrawingDrawerRequestSchema,
   liveDrawingGuessFeedbackSchema,
   liveDrawingGuessSchema,
+  liveDrawingLanguageSchema,
   liveDrawingStrokeSchema,
   liveDrawingUndoSchema,
 } from "../src/index.js";
@@ -127,6 +128,7 @@ describe("live drawing synchronized state", () => {
   it("initialises with safe public defaults", () => {
     const state = new LiveDrawingGuessingState();
     expect(state.gameId).toBe("");
+    expect(state.language).toBe("en");
     expect(state.roomCode).toBe("");
     expect(state.hostSessionId).toBe("");
     expect(state.phase).toBe("lobby");
@@ -150,6 +152,7 @@ describe("live drawing synchronized state", () => {
   });
 
   it("exposes the stable game id and constants", () => {
+    expect(liveDrawingLanguageSchema.options).toEqual(["en", "fr"]);
     expect(LIVE_DRAWING_GUESSING_GAME_ID).toBe("live-drawing-guessing");
     expect(LIVE_DRAWING_GUESSING_CONSTANTS.TOTAL_ROUNDS).toBe(3);
     expect(LIVE_DRAWING_GUESSING_CONSTANTS.MIN_PLAYERS).toBe(2);

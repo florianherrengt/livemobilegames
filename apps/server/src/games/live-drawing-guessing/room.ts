@@ -34,6 +34,7 @@ import {
 } from "./engine.js";
 import { liveDrawingGuessingRoomOptionsSchema } from "./room-options.js";
 import { syncLiveDrawingGuessingState } from "./sync.js";
+import { letterCount } from "./words.js";
 
 type RoomTimer = ReturnType<Room["clock"]["setTimeout"]>;
 
@@ -47,16 +48,25 @@ type RoomErrorCode =
   | "INVALID_GAME_COMMAND"
   | "INTERNAL_ERROR";
 
+const FRENCH_ROOM_ERROR_MESSAGES: Readonly<Record<string, string>> = {
+  "Malformed drawer request": "Demande du dessinateur invalide",
+  "Malformed play-again request": "Demande de nouvelle partie invalide",
+  "Malformed drawing command": "Commande de dessin invalide",
+  "You are not in this room": "Vous ne faites pas partie de cette salle",
+  "Drawing is not active for you": "Vous ne pouvez pas dessiner maintenant",
+  "Only the host can play again": "Seul l’hôte peut relancer une partie",
+  "Play again is only available after a match":
+    "Une nouvelle partie est disponible après la fin du match",
+  "At least two connected players are required": "Il faut au moins deux joueurs connectés",
+  "This game supports up to 8 players": "Cette partie accepte jusqu’à 8 joueurs",
+};
+
 interface RosterPlayer {
   playerId: string;
   playerName: string;
   isHost: boolean;
   joinedOrder: number;
   connectedSessionId: string | null;
-}
-
-function sendError(client: Client, code: RoomErrorCode, message: string): void {
-  client.send(ROOM_MESSAGE_TYPES.error, { code, message });
 }
 
 /**
@@ -119,11 +129,14 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
     this.state = new LiveDrawingGuessingState();
     this.state.roomCode = parsed.data.roomCode;
     this.state.gameId = LIVE_DRAWING_GUESSING_GAME_ID;
+    this.state.language = parsed.data.language;
     const e2eMode = parsed.data.e2eMode ?? false;
     // Unconsumed transition reservations block disposal until they expire.
     // Keep the window short in test mode so aborted transitions clean up fast.
     this.seatReservationTimeout = e2eMode ? 2 : 15;
-    this.#engine = createRuntime(createSettings(e2eMode, parsed.data.e2eTurnDurationMs));
+    this.#engine = createRuntime(
+      createSettings(e2eMode, parsed.data.e2eTurnDurationMs, parsed.data.language),
+    );
 
     // The lobby disconnects itself shortly after issuing reservations. If any
     // roster player never arrives, this room cannot start and disposes itself
@@ -153,7 +166,7 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
       LIVE_DRAWING_GUESSING_MESSAGE_TYPES.drawerRequest,
       (client, message: unknown) => {
         if (!liveDrawingDrawerRequestSchema.safeParse(message).success) {
-          sendError(client, "INVALID_REQUEST", "Malformed drawer request");
+          this.#sendError(client, "INVALID_REQUEST", "Malformed drawer request");
           return;
         }
         const player = this.#playerBySession(client.sessionId);
@@ -169,7 +182,7 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
     );
     this.onMessage(ROOM_MESSAGE_TYPES.playAgain, (client, message: unknown) => {
       if (!startGameRequestSchema.safeParse(message).success) {
-        sendError(client, "INVALID_REQUEST", "Malformed play-again request");
+        this.#sendError(client, "INVALID_REQUEST", "Malformed play-again request");
         return;
       }
       this.#playAgain(client);
@@ -322,16 +335,16 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
   #handleStroke(client: Client, message: unknown): void {
     const parsed = liveDrawingStrokeSchema.safeParse(message);
     if (!parsed.success) {
-      sendError(client, "INVALID_GAME_COMMAND", "Malformed drawing command");
+      this.#sendError(client, "INVALID_GAME_COMMAND", "Malformed drawing command");
       return;
     }
     const player = this.#playerBySession(client.sessionId);
     if (player === undefined) {
-      sendError(client, "PLAYER_NOT_IN_ROOM", "You are not in this room");
+      this.#sendError(client, "PLAYER_NOT_IN_ROOM", "You are not in this room");
       return;
     }
     if (!this.#canDraw(player)) {
-      sendError(client, "INVALID_GAME_COMMAND", "Drawing is not active for you");
+      this.#sendError(client, "INVALID_GAME_COMMAND", "Drawing is not active for you");
       return;
     }
     if (
@@ -390,16 +403,16 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
   #handleUndo(client: Client, message: unknown): void {
     const parsed = liveDrawingUndoSchema.safeParse(message);
     if (!parsed.success) {
-      sendError(client, "INVALID_GAME_COMMAND", "Malformed drawing command");
+      this.#sendError(client, "INVALID_GAME_COMMAND", "Malformed drawing command");
       return;
     }
     const player = this.#playerBySession(client.sessionId);
     if (player === undefined) {
-      sendError(client, "PLAYER_NOT_IN_ROOM", "You are not in this room");
+      this.#sendError(client, "PLAYER_NOT_IN_ROOM", "You are not in this room");
       return;
     }
     if (!this.#canDraw(player)) {
-      sendError(client, "INVALID_GAME_COMMAND", "Drawing is not active for you");
+      this.#sendError(client, "INVALID_GAME_COMMAND", "Drawing is not active for you");
       return;
     }
     if (
@@ -432,7 +445,7 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
     }
     const player = this.#playerBySession(client.sessionId);
     if (player === undefined) {
-      sendError(client, "PLAYER_NOT_IN_ROOM", "You are not in this room");
+      this.#sendError(client, "PLAYER_NOT_IN_ROOM", "You are not in this room");
       return;
     }
     if (!player.connected) {
@@ -459,7 +472,7 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
       // Flood protection, not a gameplay penalty: silently ignore the excess.
       return;
     }
-    if (matchesAnswer(parsed.data.text, this.#engine.word)) {
+    if (matchesAnswer(parsed.data.text, this.#engine.word, this.#engine.settings.language)) {
       this.#resolveSolved(player.playerId);
       return;
     }
@@ -468,11 +481,11 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
 
   #playAgain(client: Client): void {
     if (client.sessionId !== this.state.hostSessionId) {
-      sendError(client, "NOT_HOST", "Only the host can play again");
+      this.#sendError(client, "NOT_HOST", "Only the host can play again");
       return;
     }
     if (this.#engine.phase !== "finished") {
-      sendError(client, "GAME_NOT_RUNNING", "Play again is only available after a match");
+      this.#sendError(client, "GAME_NOT_RUNNING", "Play again is only available after a match");
       return;
     }
     // A new match includes every currently connected player: original
@@ -484,17 +497,25 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
     }
     const connectedCount = this.#engine.players.size;
     if (connectedCount < LIVE_DRAWING_GUESSING_SERVER_CONSTANTS.MIN_PLAYERS) {
-      sendError(client, "NOT_ENOUGH_PLAYERS", "At least two connected players are required");
+      this.#sendError(client, "NOT_ENOUGH_PLAYERS", "At least two connected players are required");
       return;
     }
     if (connectedCount > LIVE_DRAWING_GUESSING_SERVER_CONSTANTS.MAX_PLAYERS) {
-      sendError(client, "ROOM_FULL", "This game supports up to 8 players");
+      this.#sendError(client, "ROOM_FULL", "This game supports up to 8 players");
       return;
     }
     startMatch(this.#engine, Date.now());
     this.#lastBriefedTurn = 0;
     void this.unlock();
     this.#sync();
+  }
+
+  #sendError(client: Client, code: RoomErrorCode, message: string): void {
+    client.send(ROOM_MESSAGE_TYPES.error, {
+      code,
+      message:
+        this.state.language === "fr" ? (FRENCH_ROOM_ERROR_MESSAGES[message] ?? message) : message,
+    });
   }
 
   #tick(): void {
@@ -580,7 +601,7 @@ export class LiveDrawingGuessingRoom extends Room<{ state: LiveDrawingGuessingSt
       category: this.#engine.category,
       turnNumber: this.#engine.turnNumber,
       roundNumber: this.#engine.roundNumber,
-      letterCount: [...this.#engine.word].filter((char) => /[A-Za-z]/.test(char)).length,
+      letterCount: letterCount(this.#engine.word),
     });
   }
 
