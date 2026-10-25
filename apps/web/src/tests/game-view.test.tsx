@@ -1,5 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   makeCapitalPinState,
   makeMatchResult,
@@ -37,6 +37,10 @@ describe("CapitalPinGameView", () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("shows the waiting state while the roster is arriving", () => {
     const state = makeCapitalPinState("lobby");
     const { connection } = makeRoomConnection(state);
@@ -72,6 +76,29 @@ describe("CapitalPinGameView", () => {
     });
     expect(feedback.hapticFeedback).toHaveBeenCalledWith("select");
     expect(feedback.hapticFeedback).toHaveBeenCalledWith("confirm");
+  });
+
+  it("localizes only the active capital name for a French browser", () => {
+    vi.spyOn(window.navigator, "language", "get").mockReturnValue("fr-CA");
+    const state = makeCapitalPinState("round", { currentCapitalName: "London" });
+    const { connection } = makeRoomConnection(state);
+    render(
+      <CapitalPinGameView connection={connection} state={state} selfSessionId="host-session" />,
+    );
+
+    expect(screen.getByText("Londres")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lock answer" })).toBeInTheDocument();
+  });
+
+  it("keeps the canonical active capital name for other browser languages", () => {
+    vi.spyOn(window.navigator, "language", "get").mockReturnValue("en-GB");
+    const state = makeCapitalPinState("round", { currentCapitalName: "London" });
+    const { connection } = makeRoomConnection(state);
+    render(
+      <CapitalPinGameView connection={connection} state={state} selfSessionId="host-session" />,
+    );
+
+    expect(screen.getByText("London")).toBeInTheDocument();
   });
 
   it("shows the how-to briefly on round one and hides it on later rounds", async () => {
@@ -113,6 +140,19 @@ describe("CapitalPinGameView", () => {
     expect(screen.getByText("0.7 km")).toBeInTheDocument();
     expect(screen.getByText("1,054 km")).toBeInTheDocument();
     expect(screen.getByText("winner")).toBeInTheDocument();
+  });
+
+  it("localizes the result city name for a French browser", () => {
+    vi.spyOn(window.navigator, "language", "get").mockReturnValue("fr");
+    const result = makeRoundResult();
+    result.capitalName = "Vienna";
+    const state = makeCapitalPinState("round-results", { lastResult: result });
+    const { connection } = makeRoomConnection(state);
+    render(
+      <CapitalPinGameView connection={connection} state={state} selfSessionId="host-session" />,
+    );
+
+    expect(screen.getByText("Round 1: Vienne")).toBeInTheDocument();
   });
 
   it("renders the final leaderboard and lets the host play again", () => {

@@ -1,9 +1,13 @@
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 
 import { webConfig } from "../../../config.js";
 import "../map.css";
+
+// Let Vite emit the worker as a production asset instead of using a sibling URL.
+maplibregl.setWorkerUrl(mapWorkerUrl);
 
 export interface LngLat {
   lng: number;

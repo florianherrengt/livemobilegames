@@ -1,19 +1,63 @@
 import { type Browser, expect, type Page, test } from "@playwright/test";
 
+import { getCapitalCityDisplayName } from "../src/games/capital-pin/capital-names.js";
+
 /**
- * Blank local style served instead of the external tile style. The test only
- * needs the map canvas and markers, not real tiles, and this keeps the suite
- * deterministic offline.
+ * Local style served instead of the external tile style. The inline GeoJSON
+ * source exercises MapLibre's worker while keeping the suite deterministic and
+ * offline.
  */
-const BLANK_STYLE = {
+const LOCAL_STYLE = {
   version: 8,
-  name: "e2e-blank",
-  sources: {},
-  layers: [],
+  name: "e2e-local-geojson",
+  sources: {
+    "e2e-feature": {
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "Polygon",
+              coordinates: [
+                [
+                  [-60, -30],
+                  [60, -30],
+                  [60, 45],
+                  [-60, 45],
+                  [-60, -30],
+                ],
+              ],
+            },
+          },
+        ],
+      },
+    },
+  },
+  layers: [
+    {
+      id: "e2e-feature-fill",
+      type: "fill",
+      source: "e2e-feature",
+      paint: { "fill-color": "#4f83cc", "fill-opacity": 0.6 },
+    },
+  ],
 };
 
-async function openPhone(browser: Browser): Promise<Page> {
+function waitForMapWorker(page: Page) {
+  return page.waitForResponse(
+    (response) =>
+      response.url().includes("maplibre-gl-worker") &&
+      response.request().resourceType() === "script",
+    { timeout: 15_000 },
+  );
+}
+
+async function openPhone(browser: Browser, locale: string): Promise<Page> {
   const context = await browser.newContext({
+    locale,
     viewport: { width: 390, height: 844 },
     isMobile: true,
     hasTouch: true,
@@ -54,7 +98,7 @@ async function openPhone(browser: Browser): Promise<Page> {
       status: 200,
       contentType: "application/json",
       headers: { "Access-Control-Allow-Origin": "*" },
-      json: BLANK_STYLE,
+      json: LOCAL_STYLE,
     }),
   );
   return page;
@@ -121,8 +165,8 @@ test("two phones play all ten Capital Pin rounds, reconnect, finish, and rematch
 }) => {
   test.setTimeout(90_000);
 
-  const alice = await openPhone(browser);
-  const bob = await openPhone(browser);
+  const alice = await openPhone(browser, "en-GB");
+  const bob = await openPhone(browser, "fr-FR");
 
   const code = await createRoom(alice, "Alice");
   expect(code).toMatch(/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/);
@@ -136,10 +180,15 @@ test("two phones play all ten Capital Pin rounds, reconnect, finish, and rematch
   // round begin automatically when every roster player has arrived.
   await alice.getByRole("combobox", { name: "Choose a game" }).click();
   await alice.getByRole("option", { name: "Capital Pin" }).click();
+  const aliceMapWorker = waitForMapWorker(alice);
+  const bobMapWorker = waitForMapWorker(bob);
   await alice.getByRole("button", { name: "Start game" }).click();
 
   await alice.locator(".cp-map-container").waitFor({ timeout: 15_000 });
   await bob.locator(".cp-map-container").waitFor({ timeout: 15_000 });
+  for (const workerResponse of await Promise.all([aliceMapWorker, bobMapWorker])) {
+    expect(workerResponse.status()).toBe(200);
+  }
   for (let round = 1; round <= 10; round++) {
     for (const page of [alice, bob]) {
       await expect(page.getByText(`Round ${round} / 10`)).toBeVisible({ timeout: 15_000 });
@@ -149,7 +198,7 @@ test("two phones play all ten Capital Pin rounds, reconnect, finish, and rematch
     const aliceCapital = ((await alice.locator('[aria-live="polite"]').textContent()) ?? "").trim();
     const bobCapital = ((await bob.locator('[aria-live="polite"]').textContent()) ?? "").trim();
     expect(aliceCapital).not.toBe("");
-    expect(bobCapital).toBe(aliceCapital);
+    expect(bobCapital).toBe(getCapitalCityDisplayName(aliceCapital, "fr-FR"));
 
     // By round four the room is beyond Colyseus' minimum reconnect uptime.
     // Drop Bob's real game socket and verify the same browser resumes the
@@ -168,7 +217,8 @@ test("two phones play all ten Capital Pin rounds, reconnect, finish, and rematch
     // Both phones submit the same map point, so they tie every round and see
     // the same authoritative reveal before advancing.
     for (const page of [alice, bob]) {
-      await expect(page.getByText(`Round ${round}: ${aliceCapital}`)).toBeVisible({
+      const capital = page === bob ? bobCapital : aliceCapital;
+      await expect(page.getByText(`Round ${round}: ${capital}`)).toBeVisible({
         timeout: 15_000,
       });
       await expect(page.locator(".cp-map-container .maplibregl-canvas")).toBeVisible({

@@ -35,6 +35,8 @@ Capital Pin plays 10 rounds. Each round names a capital city and every phone
 drops a pin on a world map; the closest guess wins the round. The server keeps
 the answer secret until the round ends, owns all timing and scoring, and
 finishes with a leaderboard and a host-only play-again option.
+Capital names in prompts and round results use French when the device's browser
+language is French; the rest of the Capital Pin interface stays in English.
 
 Falling Platforms drops every player onto a shared grid of platforms. A zoomed
 camera follows your player (or a survivor you tap while spectating), so the

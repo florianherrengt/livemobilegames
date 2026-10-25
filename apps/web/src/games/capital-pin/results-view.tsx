@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { hapticFeedback } from "../../feedback.js";
 import { geoPinSounds } from "./audio/GeoPinSounds.js";
+import { getCapitalCityDisplayName } from "./capital-names.js";
 import { computeResultsCamera, type Point } from "./map/camera.js";
 import { MapMarker } from "./map/map-marker.js";
 import { GameMap, useMap } from "./map/map-view.js";
@@ -44,7 +45,7 @@ export function ResultsView({
       </GameMap>
       <Paper square sx={{ maxHeight: "45%", overflow: "auto", p: 2 }}>
         <Typography component="h2" variant="h2" sx={{ mt: 0 }}>
-          Round {result?.roundNumber ?? ""}: {result?.capitalName ?? ""}
+          Round {result?.roundNumber ?? ""}: {getCapitalCityDisplayName(result?.capitalName ?? "")}
         </Typography>
         <List disablePadding sx={{ mt: 1 }}>
           {(result?.guesses ?? [])

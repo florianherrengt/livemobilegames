@@ -102,6 +102,7 @@ vi.mock("maplibre-gl", () => ({
   Map: maplibreMock.Map,
   Marker: maplibreMock.Marker,
   NavigationControl: maplibreMock.NavigationControl,
+  setWorkerUrl: vi.fn(),
 }));
 
 export { maplibreMock };

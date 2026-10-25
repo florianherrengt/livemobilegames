@@ -6,6 +6,7 @@ import { HowToPlay } from "../../components/how-to-play.js";
 import { hapticFeedback } from "../../feedback.js";
 import type { RoomConnection } from "../../game-connection.js";
 import { geoPinSounds } from "./audio/GeoPinSounds.js";
+import { getCapitalCityDisplayName } from "./capital-names.js";
 import { MapMarker } from "./map/map-marker.js";
 import { GameMap, type LngLat } from "./map/map-view.js";
 
@@ -103,7 +104,7 @@ export function RoundView({
           Round {state.roundNumber} / {state.totalRounds}
         </Typography>
         <Typography variant="body2" aria-live="polite" sx={{ fontWeight: 700 }}>
-          {state.currentCapitalName}
+          {getCapitalCityDisplayName(state.currentCapitalName)}
         </Typography>
         {!connected && <Chip label="Reconnecting…" size="small" color="warning" />}
         <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>
